@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-surface-50 text-surface-800 font-sans;
+  }
+
+  .dark body,
+  html.dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-400;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-sm border border-surface-200/60 rounded-2xl shadow-card;
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .dark .glass-card {
+    @apply bg-gray-800/80 border-gray-700/60;
+  }
+
+  .glass-card:hover {
+    @apply shadow-card-hover border-surface-300/60;
+  }
+
+  .dark .glass-card:hover {
+    @apply border-gray-600/60;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm;
+    @apply bg-accent-600 text-white shadow-sm;
+    @apply hover:bg-accent-700 active:scale-[0.98];
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm;
+    @apply text-surface-600 hover:bg-surface-100 active:scale-[0.98];
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .dark .btn-ghost {
+    @apply text-gray-400 hover:bg-gray-700;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium;
+    @apply text-surface-500 hover:text-surface-800 hover:bg-surface-100;
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .dark .nav-link {
+    @apply text-gray-400 hover:text-white hover:bg-gray-700;
+  }
+
+  .nav-link.active {
+    @apply text-accent-600 bg-accent-50;
+  }
+
+  .dark .nav-link.active {
+    @apply text-accent-400 bg-accent-900/30;
+  }
+}
