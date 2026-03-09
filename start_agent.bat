@@ -8,9 +8,10 @@ cd /d "%~dp0"
 :: Check for virtual environment without complex IF blocks
 if not exist .venv\Scripts\python.exe goto :no_venv
 
-:: Run the agent
-.venv\Scripts\python.exe -m agent.agent
-pause
+:: Run the agent in background mode (no window)
+start /b "" .venv\Scripts\pythonw.exe -m agent.agent
+echo Agent started in background. Check the system tray icon.
+timeout /t 3
 exit /b
 
 :no_venv

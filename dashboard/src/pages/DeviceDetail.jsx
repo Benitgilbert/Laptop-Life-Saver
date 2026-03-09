@@ -64,6 +64,8 @@ export default function DeviceDetail() {
     // Remote actions state
     const [recentActions, setRecentActions] = useState([])
     const [actionLoading, setActionLoading] = useState(false)
+    const [notifMessage, setNotifMessage] = useState('')
+    const [notifLoading, setNotifLoading] = useState(false)
 
     const loading = deviceLoading || telemetryLoading || thresholdsLoading
 
@@ -143,6 +145,22 @@ export default function DeviceDetail() {
             alert(`Failed to send ${command}: ` + error.message)
         }
         setActionLoading(false)
+    }
+
+    const handleSendNotification = async () => {
+        if (!notifMessage.trim()) return
+        setNotifLoading(true)
+        const { error } = await supabase.from('remote_actions').insert({
+            device_id: deviceId,
+            command: 'SHOW_NOTIFICATION',
+            params: { message: notifMessage }
+        })
+        if (!error) {
+            setNotifMessage('')
+        } else {
+            alert('Failed to send notification: ' + error.message)
+        }
+        setNotifLoading(false)
     }
 
     const chartData = telemetry.map(t => ({
@@ -392,6 +410,26 @@ export default function DeviceDetail() {
                                 <RefreshCw className={`w-3.5 h-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
                                 Force Telemetry Sync
                             </button>
+
+                            <div className="mt-4 pt-4 border-t border-surface-800">
+                                <p className="text-[10px] text-surface-400 mb-2 uppercase tracking-wider font-bold">Send Message to User</p>
+                                <div className="flex flex-col gap-2">
+                                    <textarea
+                                        value={notifMessage}
+                                        onChange={(e) => setNotifMessage(e.target.value)}
+                                        placeholder="Type alert message..."
+                                        className="bg-surface-800 border-none rounded-lg p-2 text-xs text-white placeholder:text-surface-600 focus:ring-1 focus:ring-accent-500 resize-none h-16"
+                                    />
+                                    <button
+                                        onClick={handleSendNotification}
+                                        disabled={notifLoading || !notifMessage.trim()}
+                                        className="btn-accent text-[10px] py-2 px-3 rounded-lg flex items-center justify-center gap-2 disabled:opacity-30"
+                                    >
+                                        <Activity className="w-3 h-3" />
+                                        Send Toast Alert
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

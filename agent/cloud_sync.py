@@ -43,7 +43,7 @@ def get_supabase():
 #  Device registration
 # ─────────────────────────────────────────────────────────────────────
 
-def register_device(inventory: Optional[dict] = None) -> Optional[str]:
+def register_device(inventory: Optional[dict] = None, user_info: Optional[dict] = None) -> Optional[str]:
     """
     Upsert the current device into the `devices` table.
     Returns the device UUID on success, or None on failure.
@@ -56,6 +56,15 @@ def register_device(inventory: Optional[dict] = None) -> Optional[str]:
             "hostname": DEVICE_HOSTNAME, 
             "os_version": OS_VERSION
         }
+        
+        # Add user metadata if provided (from first-run setup)
+        if user_info:
+            if "assigned_user" in user_info: payload["assigned_user"] = user_info["assigned_user"]
+            if "department" in user_info: payload["location"] = user_info["department"]
+            if "asset_tag" in user_info: payload["asset_tag"] = user_info["asset_tag"]
+            # Email could be added to assigned_user or a new column if exists
+            if "user_email" in user_info and user_info["user_email"]:
+                payload["assigned_user"] = f"{payload.get('assigned_user', '')} <{user_info['user_email']}>".strip()
         
         # Add hardware inventory if provided
         if inventory:

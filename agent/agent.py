@@ -10,6 +10,8 @@ Implements the Agent Logic Flowchart:
 import logging
 import sys
 import time
+import os
+import threading
 from datetime import datetime, timezone
 from typing import Optional
 from dotenv import load_dotenv
@@ -37,7 +39,8 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logger = logging.getLogger("agent")
+# ── Global state for threading ─────────────────────────────────────
+_stop_event = threading.Event()
 
 # ── Sustained-temperature tracker ────────────────────────────────────────
 _high_temp_start: Optional[float] = None
@@ -91,29 +94,10 @@ def classify_health(snapshot: dict) -> str:
 #  Main loop
 # ─────────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    logger.info("═══════════════════════════════════════════════════")
-    logger.info("  Laptop Life-Saver Agent v%s", AGENT_VERSION)
-    logger.info("  Poll interval: %ds", POLL_INTERVAL)
-    logger.info("═══════════════════════════════════════════════════")
-
-    # Step 1 — Register device (with initial hardware inventory)
-    boot_snapshot = collect_snapshot()
-    device_id = register_device(boot_snapshot)
-    if device_id:
-        logger.info("Device ID: %s", device_id)
-        # Cleanup any stuck actions from a previous crash
-        cleanup_stuck_actions(device_id)
-    else:
-        logger.warning("Running in OFFLINE mode — data buffered locally")
-
-    # Initialise circular buffer
-    buffer = CircularBuffer()
-    logger.info("Buffer loaded: %d existing records", len(buffer))
-
+def main_loop(device_id: Optional[str], buffer: CircularBuffer) -> None:
     cycle = 0
     try:
-        while True:
+        while not _stop_event.is_set():
             cycle_start = time.time()
             cycle += 1
             logger.info("── Cycle %d ────────────────────────────────────────", cycle)
@@ -136,7 +120,10 @@ def main() -> None:
             snapshot["health_status"] = health
             logger.info("Health status: %s", health.upper())
 
-            # Step 4 — Send or buffer
+            # Step 3 — Local safety checks (proactive alerts)
+            check_local_safety_alerts(snapshot)
+
+            # Step 4 — Sync to cloud (or buffer)
             sent = False
             if device_id:
                 sent = send_telemetry(device_id, snapshot)
@@ -171,12 +158,71 @@ def main() -> None:
             cycle_duration = cycle_end - cycle_start
             sleep_time = max(0, POLL_INTERVAL - cycle_duration)
             
+            
+            
             logger.info("Cycle took %.2fs, sleeping %.2fs...\n", cycle_duration, sleep_time)
-            time.sleep(sleep_time)
+            
+            # Sleep in small chunks to remain responsive to stop_event
+            for _ in range(int(sleep_time * 2)):
+                if _stop_event.is_set(): break
+                time.sleep(0.5)
 
-    except KeyboardInterrupt:
-        logger.info("\nAgent stopped by user. Buffer has %d records.", len(buffer))
-        sys.exit(0)
+    except Exception as e:
+        logger.error("Main loop crashed: %s", e)
+
+def load_user_config() -> Optional[dict]:
+    """Load user metadata from local JSON, or return None if first run."""
+    config_path = os.path.join(os.path.dirname(__file__), "user_config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error("Failed to load user config: %s", e)
+    return None
+
+def main() -> None:
+    logger.info("═══════════════════════════════════════════════════")
+    logger.info("  Laptop Life-Saver Agent v%s", AGENT_VERSION)
+    logger.info("  Poll interval: %ds", POLL_INTERVAL)
+    logger.info("═══════════════════════════════════════════════════")
+
+    # Step 0 — Check for User Setup (First Run)
+    user_info = load_user_config()
+    if not user_info:
+        logger.info("First run detected — launching Setup Wizard...")
+        from agent.setup_wizard import run_wizard
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.png")
+        config_path = os.path.join(os.path.dirname(__file__), "user_config.json")
+        user_info = run_wizard(logo_path, config_path)
+        
+    # Step 1 — Register device (with initial hardware inventory and user info)
+    boot_snapshot = collect_snapshot()
+    device_id = register_device(boot_snapshot, user_info=user_info)
+    if device_id:
+        logger.info("Device ID: %s", device_id)
+        cleanup_stuck_actions(device_id)
+    
+    buffer = CircularBuffer()
+    
+    # Start the monitoring loop in a background thread
+    daemon_thread = threading.Thread(
+        target=main_loop, 
+        args=(device_id, buffer), 
+        daemon=True
+    )
+    daemon_thread.start()
+
+    # Start the Tray Icon on the main thread (blocking)
+    from agent.tray import AgentTray
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.png")
+    
+    def on_exit():
+        logger.info("Shutting down agent...")
+        _stop_event.set()
+
+    tray = AgentTray(logo_path, on_exit=on_exit)
+    tray.run()
 
 
 def check_remote_actions(device_id: str, buffer: CircularBuffer) -> None:
@@ -214,6 +260,10 @@ def check_remote_actions(device_id: str, buffer: CircularBuffer) -> None:
                     from agent.cloud_sync import send_telemetry, flush_buffer
                     if send_telemetry(device_id, snapshot):
                         flush_buffer(buffer, device_id)
+                elif command == "SHOW_NOTIFICATION":
+                    message = action.get("params", {}).get("message", "IT Maintenance Note")
+                    from agent.notifications import show_toast
+                    show_toast("Message from IT Admin", message)
                 
                 # Mark as completed
                 client.table("remote_actions").update({
@@ -256,6 +306,26 @@ def cleanup_stuck_actions(device_id: str) -> None:
                 }).eq("id", action["id"]).execute()
     except Exception as e:
         logger.error("Failed to cleanup stuck actions: %s", e)
+
+def check_local_safety_alerts(snapshot: dict) -> None:
+    """Trigger local toast notifications if critical thresholds are breached."""
+    from agent.notifications import notify_high_temp, notify_disk_full, notify_low_battery
+    
+    # 1. Temperature Check
+    temp = snapshot.get("cpu_temp_c")
+    if temp and temp >= 85: # TODO: Load from config
+        notify_high_temp(temp)
+        
+    # 2. Disk Check
+    disk = snapshot.get("disk_usage_pct")
+    if disk and disk >= 95:
+        notify_disk_full(disk)
+        
+    # 3. Battery Check
+    battery = snapshot.get("battery_percent")
+    plugged = snapshot.get("battery_plugged")
+    if battery and battery <= 15 and not plugged:
+        notify_low_battery(battery)
 
 
 if __name__ == "__main__":
