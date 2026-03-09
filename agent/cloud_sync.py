@@ -43,7 +43,7 @@ def get_supabase():
 #  Device registration
 # ─────────────────────────────────────────────────────────────────────
 
-def register_device() -> Optional[str]:
+def register_device(inventory: Optional[dict] = None) -> Optional[str]:
     """
     Upsert the current device into the `devices` table.
     Returns the device UUID on success, or None on failure.
@@ -52,12 +52,20 @@ def register_device() -> Optional[str]:
     if client is None:
         return None
     try:
+        payload = {
+            "hostname": DEVICE_HOSTNAME, 
+            "os_version": OS_VERSION
+        }
+        
+        # Add hardware inventory if provided
+        if inventory:
+            if "cpu_model" in inventory: payload["cpu_model"] = inventory["cpu_model"]
+            if "ram_size_gb" in inventory: payload["ram_size_gb"] = inventory["ram_size_gb"]
+            if "disk_type" in inventory: payload["disk_type"] = inventory["disk_type"]
+
         result = (
             client.table("devices")
-            .upsert(
-                {"hostname": DEVICE_HOSTNAME, "os_version": OS_VERSION},
-                on_conflict="hostname",
-            )
+            .upsert(payload, on_conflict="hostname")
             .execute()
         )
         device_id = result.data[0]["id"]
@@ -81,7 +89,19 @@ def send_telemetry(device_id: str, record: dict) -> bool:
     if client is None:
         return False
     try:
-        payload = {**record, "device_id": device_id}
+        # Filter payload to only include columns defined in the `telemetry` table
+        # We exclude static inventory fields like cpu_model, ram_size_gb, disk_type
+        # which are stored in the `devices` table.
+        allowed_keys = {
+            "device_id", "recorded_at", "cpu_temp_c", "cpu_usage_pct", 
+            "battery_percent", "battery_plugged", "ram_usage_pct", 
+            "disk_usage_pct", "top_process", "health_status", 
+            "disk_health", "disk_wear_pct"
+        }
+        
+        payload = {k: v for k, v in record.items() if k in allowed_keys}
+        payload["device_id"] = device_id
+        
         client.table("telemetry").insert(payload).execute()
         return True
     except Exception as exc:

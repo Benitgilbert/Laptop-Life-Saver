@@ -59,6 +59,10 @@ export default function Devices() {
     const [sortBy, setSortBy] = useState('hostname')
     const [sortDir, setSortDir] = useState('asc')
 
+    // Pagination (Phase 4)
+    const [page, setPage] = useState(1)
+    const itemsPerPage = 10
+
     const handleSort = (key) => {
         if (sortBy === key) {
             setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -105,6 +109,15 @@ export default function Devices() {
         }
         return sortDir === 'asc' ? va - vb : vb - va
     })
+
+    // ── Pagination Calculation ─────────────────────────
+    const totalPages = Math.ceil(sortedDevices.length / itemsPerPage)
+    const paginatedDevices = sortedDevices.slice((page - 1) * itemsPerPage, page * itemsPerPage)
+
+    const handlePageChange = (p) => {
+        setPage(p)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
 
     // ── Export helpers ────────────────────────────────
     const EXPORT_COLUMNS = ['hostname', 'os', 'health', 'cpu_temp', 'cpu_usage', 'ram', 'disk', 'battery', 'top_process', 'last_seen']
@@ -221,7 +234,7 @@ export default function Devices() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-surface-100">
-                                {sortedDevices.map((device, i) => {
+                                {paginatedDevices.map((device, i) => {
                                     const t = latest.find(l => l.device_id === device.id)
                                     const health = evaluateHealth(t, thresholds)
                                     return (
@@ -288,7 +301,7 @@ export default function Devices() {
 
                     {/* ── Mobile card grid ───────────────────── */}
                     <div className="md:hidden space-y-3">
-                        {sortedDevices.map((device, i) => {
+                        {paginatedDevices.map((device, i) => {
                             const t = latest.find(l => l.device_id === device.id)
                             const health = evaluateHealth(t, thresholds)
                             return (
@@ -324,6 +337,41 @@ export default function Devices() {
                             )
                         })}
                     </div>
+
+                    {/* ── Pagination Controls ──────────────────── */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-4 border-t border-surface-200">
+                            <p className="text-xs text-surface-500">
+                                Showing <span className="font-semibold text-surface-800">{(page - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-surface-800">{Math.min(page * itemsPerPage, sortedDevices.length)}</span> of <span className="font-semibold text-surface-800">{sortedDevices.length}</span> devices
+                            </p>
+                            <div className="flex gap-1">
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => handlePageChange(page - 1)}
+                                    className="btn-ghost px-3 py-1 text-xs disabled:opacity-30"
+                                >
+                                    Previous
+                                </button>
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => handlePageChange(i + 1)}
+                                        className={`w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${page === i + 1 ? 'bg-accent-600 text-white shadow-md' : 'btn-ghost text-surface-500 hover:bg-surface-100'
+                                            }`}
+                                    >
+                                        {i + 1}
+                                    </button>
+                                ))}
+                                <button
+                                    disabled={page === totalPages}
+                                    onClick={() => handlePageChange(page + 1)}
+                                    className="btn-ghost px-3 py-1 text-xs disabled:opacity-30"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
         </div>

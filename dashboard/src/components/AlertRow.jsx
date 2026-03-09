@@ -1,4 +1,16 @@
+import { Link } from 'react-router-dom'
 import { CheckCircle2, Clock } from 'lucide-react'
+
+function formatDate(dateString) {
+    const d = new Date(dateString)
+    return d.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
 
 function timeAgo(dateString) {
     const now = new Date()
@@ -35,8 +47,11 @@ export default function AlertRow({ alert, onResolve }) {
             </span>
 
             {/* Info */}
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-surface-800 truncate">
+            <Link
+                to={`/devices/${alert.device_id}`}
+                className="flex-1 min-w-0 group cursor-pointer"
+            >
+                <p className="text-sm font-semibold text-surface-800 truncate group-hover:text-accent-600 transition-colors">
                     {alert.alert_type?.replace(/_/g, ' ')}
                 </p>
                 <p className="text-xs text-surface-500 mt-0.5 truncate">{alert.message}</p>
@@ -44,14 +59,16 @@ export default function AlertRow({ alert, onResolve }) {
                     <span className="text-[11px] text-surface-400 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {timeAgo(alert.created_at)}
+                        <span className="opacity-60 ml-1">• {formatDate(alert.created_at)}</span>
                     </span>
                     {alert.devices?.hostname && (
-                        <span className="text-[11px] text-surface-400">
-                            📟 {alert.devices.hostname}
+                        <span className="text-[11px] text-surface-400 flex items-center gap-1">
+                            <span>📟</span>
+                            <span className="group-hover:underline">{alert.devices.hostname}</span>
                         </span>
                     )}
                 </div>
-            </div>
+            </Link>
 
             {/* Resolve button */}
             {!alert.resolved ? (

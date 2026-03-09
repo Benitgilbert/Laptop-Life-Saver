@@ -10,7 +10,20 @@ Implements the Agent Logic Flowchart:
 import logging
 import sys
 import time
+from datetime import datetime, timezone
 from typing import Optional
+from dotenv import load_dotenv
+
+# ── Load environment variables (CRITICAL) ───────────────────────────
+load_dotenv()
+
+# ── Logging setup (Must be early) ───────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("agent")
 
 from agent.config import POLL_INTERVAL, THRESHOLDS, AGENT_VERSION
 from agent.hardware_monitor import collect_snapshot
@@ -84,10 +97,13 @@ def main() -> None:
     logger.info("  Poll interval: %ds", POLL_INTERVAL)
     logger.info("═══════════════════════════════════════════════════")
 
-    # Step 1 — Register device with Supabase (returns None if offline)
-    device_id = register_device()
+    # Step 1 — Register device (with initial hardware inventory)
+    boot_snapshot = collect_snapshot()
+    device_id = register_device(boot_snapshot)
     if device_id:
         logger.info("Device ID: %s", device_id)
+        # Cleanup any stuck actions from a previous crash
+        cleanup_stuck_actions(device_id)
     else:
         logger.warning("Running in OFFLINE mode — data buffered locally")
 
@@ -146,6 +162,10 @@ def main() -> None:
                         result["aggregated"], result["deleted"]
                     )
 
+            # Step 6 — Remote Action Check (Phase 1)
+            if device_id:
+                check_remote_actions(device_id, buffer)
+
             # Step 7 — Sleep (accounting for processing time)
             cycle_end = time.time()
             cycle_duration = cycle_end - cycle_start
@@ -157,6 +177,85 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.info("\nAgent stopped by user. Buffer has %d records.", len(buffer))
         sys.exit(0)
+
+
+def check_remote_actions(device_id: str, buffer: CircularBuffer) -> None:
+    """Check for pending commands in the `remote_actions` table."""
+    from agent.cloud_sync import get_supabase
+    client = get_supabase()
+    if client is None:
+        return
+
+    try:
+        # Get pending actions for this device
+        result = (
+            client.table("remote_actions")
+            .select("*")
+            .eq("device_id", device_id)
+            .eq("status", "pending")
+            .execute()
+        )
+        
+        for action in result.data:
+            action_id = action["id"]
+            command = action["command"]
+            logger.info("⚡ Remote Action received: %s", command)
+            
+            # Mark as processing
+            client.table("remote_actions").update({"status": "processing"}).eq("id", action_id).execute()
+            
+            try:
+                logger.info("⚡ Executing Remote Action: %s", command)
+                if command == "FORCE_SYNC":
+                    # Step 2 — Read hardware sensors
+                    snapshot = collect_snapshot()
+                    health = classify_health(snapshot)
+                    snapshot["health_status"] = health
+                    from agent.cloud_sync import send_telemetry, flush_buffer
+                    if send_telemetry(device_id, snapshot):
+                        flush_buffer(buffer, device_id)
+                
+                # Mark as completed
+                client.table("remote_actions").update({
+                    "status": "completed", 
+                    "completed_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", action_id).execute()
+                logger.info("✓ Remote Action completed: %s", command)
+                
+            except Exception as e:
+                logger.error("✗ Remote Action failed: %s", str(e))
+                client.table("remote_actions").update({
+                    "status": "failed", 
+                    "error_message": str(e)
+                }).eq("id", action_id).execute()
+
+    except Exception as exc:
+        logger.error("Failed to check remote actions: %s", exc)
+
+def cleanup_stuck_actions(device_id: str) -> None:
+    """Reset any actions stuck in 'processing' from a previous crash."""
+    from agent.cloud_sync import get_supabase
+    client = get_supabase()
+    if client is None:
+        return
+
+    try:
+        # Check for processing actions
+        result = client.table("remote_actions") \
+            .select("id") \
+            .eq("device_id", device_id) \
+            .eq("status", "processing") \
+            .execute()
+        
+        if result.data:
+            logger.info("Found %d stuck actions — resetting to failed", len(result.data))
+            for action in result.data:
+                client.table("remote_actions").update({
+                    "status": "failed",
+                    "error_message": "Agent process interrupted/crashed"
+                }).eq("id", action["id"]).execute()
+    except Exception as e:
+        logger.error("Failed to cleanup stuck actions: %s", e)
 
 
 if __name__ == "__main__":

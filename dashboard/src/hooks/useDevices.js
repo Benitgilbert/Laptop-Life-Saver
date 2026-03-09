@@ -29,8 +29,14 @@ export function useDevices() {
         // Real-time subscription
         const channel = supabase
             .channel('devices-changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => {
-                fetchDevices()
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setDevices(prev => [payload.new, ...prev])
+                } else if (payload.eventType === 'UPDATE') {
+                    setDevices(prev => prev.map(d => d.id === payload.new.id ? payload.new : d))
+                } else if (payload.eventType === 'DELETE') {
+                    setDevices(prev => prev.filter(d => d.id === payload.old.id))
+                }
             })
             .subscribe()
 

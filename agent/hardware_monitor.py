@@ -8,6 +8,8 @@ CPU temperature via MSAcpi_ThermalZoneTemperature.
 
 import datetime
 import logging
+import platform
+import subprocess
 from typing import Any, Optional
 
 import psutil
@@ -142,6 +144,70 @@ def top_memory_process() -> str:
     return top
 
 
+# ── Inventory & S.M.A.R.T. (Phase 1) ───────────────────────────────
+
+def get_cpu_model() -> str:
+    """Return the CPU model name (e.g., 'Intel Core i7-10700K')."""
+    try:
+        if platform.system() == "Windows":
+            cmd = "wmic cpu get name"
+            output = subprocess.check_output(cmd, shell=True, timeout=5).decode().strip()
+            lines = [l.strip() for l in output.split('\n') if l.strip()]
+            if len(lines) > 1:
+                return lines[1]
+        elif platform.system() == "Darwin":
+            cmd = "sysctl -n machdep.cpu.brand_string"
+            return subprocess.check_output(cmd, shell=True, timeout=5).decode().strip()
+        elif platform.system() == "Linux":
+            cmd = "grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2"
+            return subprocess.check_output(cmd, shell=True, timeout=5).decode().strip()
+    except Exception:
+        pass
+    return platform.processor() or "Unknown CPU"
+
+
+def get_ram_size_gb() -> float:
+    """Return total RAM size in GB."""
+    return round(psutil.virtual_memory().total / (1024**3), 1)
+
+
+def get_disk_info() -> dict:
+    """
+    Return disk type (SSD/HDD) and basic S.M.A.R.T. health if possible.
+    Note: True S.M.A.R.T. requires admin/root.
+    """
+    info = {
+        "type": "Unknown",
+        "health": "GOOD",
+        "wear_pct": None
+    }
+    
+    try:
+        if platform.system() == "Windows":
+            # Check for SSD vs HDD via PowerShell
+            cmd = "powershell -Command \"Get-PhysicalDisk | Select-Object MediaType, Status\""
+            output = subprocess.check_output(cmd, shell=True, timeout=5).decode().strip()
+            if "SSD" in output:
+                info["type"] = "SSD"
+            elif "HDD" in output:
+                info["type"] = "HDD"
+            
+            if "Healthy" not in output and "OK" not in output:
+                info["health"] = "WARNING"
+                
+            # Try to get wear for SSD (Heuristic: Windows doesn't make this easy without specific vendor tools)
+            # But we can check for predicted failure
+            cmd_fail = "wmic diskdrive get status"
+            output_fail = subprocess.check_output(cmd_fail, shell=True, timeout=5).decode().strip()
+            if "PredFail" in output_fail:
+                info["health"] = "FAILING"
+                
+    except Exception:
+        pass
+        
+    return info
+
+
 # ─────────────────────────────────────────────────────────────────────
 #  Composite snapshot
 # ─────────────────────────────────────────────────────────────────────
@@ -152,8 +218,12 @@ def collect_snapshot() -> dict:
     This is the single function the main loop calls each cycle.
     """
     battery = read_battery_health()
+    disk_info = get_disk_info()
+    
     return {
         "recorded_at":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        
+        # Performance
         "cpu_temp_c":     read_cpu_temp(),
         "cpu_usage_pct":  read_cpu_usage(),
         "battery_percent": battery["percent"],
@@ -161,4 +231,13 @@ def collect_snapshot() -> dict:
         "ram_usage_pct":  read_ram_usage(),
         "disk_usage_pct": read_disk_usage(),
         "top_process":    top_memory_process(),
+        
+        # Inventory (Phase 1)
+        "cpu_model":      get_cpu_model(),
+        "ram_size_gb":    get_ram_size_gb(),
+        "disk_type":      disk_info["type"],
+        
+        # Health (Phase 1)
+        "disk_health":    disk_info["health"],
+        "disk_wear_pct":  disk_info["wear_pct"],
     }

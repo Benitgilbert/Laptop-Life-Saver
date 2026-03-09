@@ -6,15 +6,41 @@
 -- ═══════════════════════════════════════════════════════════════════
 
 
+-- ═══════════════════════════════════════════════════════════════════
+--  1. CLEAN SLATE (CRITICAL: Removes old conflicting tables)
+-- ═══════════════════════════════════════════════════════════════════
+DROP TABLE IF EXISTS telemetry_hourly CASCADE;
+DROP TABLE IF EXISTS threshold_settings CASCADE;
+DROP TABLE IF EXISTS remote_actions CASCADE;
+DROP TABLE IF EXISTS alerts CASCADE;
+DROP TABLE IF EXISTS telemetry CASCADE;
+DROP TABLE IF EXISTS devices CASCADE;
+
+-- Also clean up any potential legacy tables seen in your screenshot
+DROP TABLE IF EXISTS telemetry_logs CASCADE;
+DROP TABLE IF EXISTS process_snapshots CASCADE;
+DROP TABLE IF EXISTS software_versions CASCADE;
+
+
 -- ─────────────────────────────────────────────────────────────────
---  1. DEVICES — one row per monitored laptop
+--  2. DEVICES — one row per monitored laptop
 -- ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS devices (
     id              uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
     hostname        text            NOT NULL UNIQUE,
     os_version      text,
     registered_at   timestamptz     NOT NULL DEFAULT now(),
-    last_seen       timestamptz     NOT NULL DEFAULT now()
+    last_seen       timestamptz     NOT NULL DEFAULT now(),
+    
+    -- Metadata (Phase 1)
+    location        text,           -- School or Department
+    asset_tag       text,           -- Physical inventory tag
+    assigned_user   text,           -- Name/ID of the laptop user
+    
+    -- Hardware Inventory (Phase 1)
+    cpu_model       text,
+    disk_type       text,           -- SSD or HDD
+    ram_size_gb     real
 );
 
 COMMENT ON TABLE  devices IS 'Registered laptops in the Nyanza District fleet';
@@ -35,7 +61,11 @@ CREATE TABLE IF NOT EXISTS telemetry (
     ram_usage_pct   real,
     disk_usage_pct  real,
     top_process     text,
-    health_status   text            NOT NULL CHECK (health_status IN ('green','yellow','red'))
+    health_status   text            NOT NULL CHECK (health_status IN ('green','yellow','red')),
+    
+    -- S.M.A.R.T. Health (Phase 1)
+    disk_health     text,           -- e.g. 'GOOD', 'WARNING', 'FAILING'
+    disk_wear_pct   real            -- Wear level for SSDs
 );
 
 COMMENT ON TABLE  telemetry IS 'Hardware telemetry snapshots sent by agents';
@@ -94,6 +124,24 @@ CREATE INDEX IF NOT EXISTS idx_alerts_device_unresolved
 
 
 -- ─────────────────────────────────────────────────────────────────
+--  3b. REMOTE ACTIONS — commands sent from dashboard to agent
+-- ─────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS remote_actions (
+    id              uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id       uuid            NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    command         text            NOT NULL,        -- 'FORCE_SYNC', 'REBOOT', 'COLLECT_LOGS'
+    params          jsonb,
+    status          text            NOT NULL DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
+    created_at      timestamptz     NOT NULL DEFAULT now(),
+    completed_at    timestamptz,
+    error_message   text
+);
+
+ALTER TABLE remote_actions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Dashboard users can manage actions" ON remote_actions FOR ALL TO authenticated USING (true);
+
+
+-- ─────────────────────────────────────────────────────────────────
 --  4. ROW LEVEL SECURITY (RLS)
 -- ─────────────────────────────────────────────────────────────────
 --  Supabase uses two built-in roles:
@@ -113,8 +161,20 @@ ALTER TABLE alerts           ENABLE ROW LEVEL SECURITY;
 -- Allow authenticated (dashboard) users to READ all rows
 CREATE POLICY "Dashboard users can read devices"
     ON devices FOR SELECT
-    TO authenticated
+    TO authenticated, anon
     USING (true);
+
+CREATE POLICY "Dashboard users can update devices"
+    ON devices FOR UPDATE
+    TO authenticated
+    USING (true)
+    WITH CHECK (true);
+
+CREATE POLICY "Service role has full access"
+    ON devices FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 
 CREATE POLICY "Dashboard users can read telemetry"
     ON telemetry FOR SELECT
@@ -261,8 +321,25 @@ CREATE TRIGGER on_telemetry_insert
     EXECUTE FUNCTION handle_telemetry_alert();
 
 
+-- ─────────────────────────────────────────────────────────────────
+--  7. REALTIME — Enable Postgres Publications
+-- ─────────────────────────────────────────────────────────────────
+-- This allows the dashboard to listen for INSERTs and UPDATEs
+-- without manual page refreshes.
+
+-- Drop if exists to avoid errors on re-run
+DROP PUBLICATION IF EXISTS supabase_realtime;
+
+-- Create publication for shared tables
+CREATE PUBLICATION supabase_realtime FOR TABLE 
+    devices, 
+    telemetry, 
+    alerts,
+    threshold_settings;
+
+
 -- ═══════════════════════════════════════════════════════════════════
---  Done!  Three tables + Thresholds + Alert Trigger.
+--  Done!  Three tables + Thresholds + Alert Trigger + Realtime.
 --  The Python agent uses the service_role key (bypasses RLS).
 --  Dashboard users authenticate and get read-only + alert-resolve.
 -- ═══════════════════════════════════════════════════════════════════

@@ -53,8 +53,14 @@ export function useAlerts(filter = 'all') {
 
         const channel = supabase
             .channel('alerts-changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
-                fetchAlerts()
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setAlerts(prev => [payload.new, ...prev])
+                } else if (payload.eventType === 'UPDATE') {
+                    setAlerts(prev => prev.map(a => a.id === payload.new.id ? payload.new : a))
+                } else if (payload.eventType === 'DELETE') {
+                    setAlerts(prev => prev.filter(a => a.id === payload.old.id))
+                }
             })
             .subscribe()
 

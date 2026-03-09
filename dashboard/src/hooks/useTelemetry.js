@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
 const TIME_RANGES = {
@@ -55,7 +55,8 @@ export function useTelemetry(deviceId, range = '24h') {
         }
     }, [deviceId, range])
 
-    return { telemetry, loading, error }
+    const memoizedTelemetry = useMemo(() => telemetry, [telemetry])
+    return { telemetry: memoizedTelemetry, loading, error }
 }
 
 export function useLatestTelemetry() {
@@ -66,23 +67,14 @@ export function useLatestTelemetry() {
         const fetchLatest = async () => {
             try {
                 setLoading(true)
-                // Get the latest telemetry record per device
                 const { data, error } = await supabase
                     .from('telemetry')
                     .select('*')
                     .order('recorded_at', { ascending: false })
-                    .limit(100)
+                    .limit(200)
 
                 if (error) throw error
-
-                // Group by device_id and take the latest
-                const byDevice = {}
-                for (const row of (data || [])) {
-                    if (!byDevice[row.device_id]) {
-                        byDevice[row.device_id] = row
-                    }
-                }
-                setLatest(Object.values(byDevice))
+                setLatest(data || [])
             } catch (err) {
                 console.error('Failed to fetch latest telemetry:', err)
             } finally {
@@ -91,9 +83,29 @@ export function useLatestTelemetry() {
         }
 
         fetchLatest()
-        const interval = setInterval(fetchLatest, 30000) // refresh every 30s
-        return () => clearInterval(interval)
+
+        // Real-time subscription for automatic updates
+        const channel = supabase
+            .channel('latest-telemetry-changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry' }, (payload) => {
+                setLatest(prev => [payload.new, ...prev].slice(0, 200))
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
 
-    return { latest, loading }
+    const memoizedLatest = useMemo(() => {
+        const byDevice = {}
+        for (const row of latest) {
+            if (!byDevice[row.device_id]) {
+                byDevice[row.device_id] = row
+            }
+        }
+        return Object.values(byDevice)
+    }, [latest])
+
+    return { latest: memoizedLatest, loading }
 }

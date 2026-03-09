@@ -1,6 +1,10 @@
 import { useParams, Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Monitor, Thermometer, MemoryStick, HardDrive, Battery, BatteryCharging, Clock, Cpu, Plug, ZapOff, Gauge, ShieldCheck } from 'lucide-react'
+import {
+    ArrowLeft, Monitor, Thermometer, MemoryStick, HardDrive, Battery,
+    BatteryCharging, Clock, Cpu, Plug, ZapOff, Gauge, ShieldCheck,
+    Info, ExternalLink, RefreshCw, Terminal, Activity
+} from 'lucide-react'
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart,
 } from 'recharts'
@@ -48,8 +52,18 @@ export default function DeviceDetail() {
     const [range, setRange] = useState('24h')
     const [device, setDevice] = useState(null)
     const [deviceLoading, setDeviceLoading] = useState(true)
+
+    // Metadata editing state (Phase 1)
+    const [isEditing, setIsEditing] = useState(false)
+    const [metadata, setMetadata] = useState({ location: '', asset_tag: '', assigned_user: '' })
+    const [saving, setSaving] = useState(false)
+
     const { thresholds, loading: thresholdsLoading } = useThresholds()
     const { telemetry, loading: telemetryLoading } = useTelemetry(deviceId, range)
+
+    // Remote actions state
+    const [recentActions, setRecentActions] = useState([])
+    const [actionLoading, setActionLoading] = useState(false)
 
     const loading = deviceLoading || telemetryLoading || thresholdsLoading
 
@@ -62,10 +76,74 @@ export default function DeviceDetail() {
                 .eq('id', deviceId)
                 .single()
             setDevice(data)
+            if (data) {
+                setMetadata({
+                    location: data.location || '',
+                    asset_tag: data.asset_tag || '',
+                    assigned_user: data.assigned_user || ''
+                })
+            }
             setDeviceLoading(false)
         }
-        if (deviceId) fetchDevice()
+
+        const fetchActions = async () => {
+            const { data } = await supabase
+                .from('remote_actions')
+                .select('*')
+                .eq('device_id', deviceId)
+                .order('created_at', { ascending: false })
+                .limit(5)
+            setRecentActions(data || [])
+        }
+
+        if (deviceId) {
+            fetchDevice()
+            fetchActions()
+
+            // Real-time subscription for actions
+            const channel = supabase
+                .channel(`device-actions-${deviceId}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'remote_actions',
+                    filter: `device_id=eq.${deviceId}`
+                }, () => {
+                    fetchActions()
+                })
+                .subscribe()
+
+            return () => supabase.removeChannel(channel)
+        }
     }, [deviceId])
+
+    const handleSaveMetadata = async () => {
+        setSaving(true)
+        const { error } = await supabase
+            .from('devices')
+            .update(metadata)
+            .eq('id', deviceId)
+
+        if (!error) {
+            setDevice({ ...device, ...metadata })
+            setIsEditing(false)
+        } else {
+            alert('Failed to save metadata: ' + error.message)
+        }
+        setSaving(false)
+    }
+
+    const triggerAction = async (command) => {
+        setActionLoading(true)
+        const { error } = await supabase.from('remote_actions').insert({
+            device_id: deviceId,
+            command: command
+        })
+        if (error) {
+            alert(`Failed to send ${command}: ` + error.message)
+        }
+        setActionLoading(false)
+    }
 
     const chartData = telemetry.map(t => ({
         time: formatTime(t.recorded_at),
@@ -139,6 +217,85 @@ export default function DeviceDetail() {
                 </div>
             </div>
 
+            {/* Inventory & Metadata Summary (Phase 1) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="glass-card p-5 border-l-4 border-l-accent-500">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Info className="w-4 h-4 text-accent-500" />
+                        <h2 className="text-sm font-semibold text-surface-700">Hardware Inventory</h2>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                            <span className="text-surface-400">CPU Model</span>
+                            <span className="text-surface-700 font-medium">{device?.cpu_model || 'Loading...'}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                            <span className="text-surface-400">Total RAM</span>
+                            <span className="text-surface-700 font-medium">{device?.ram_size_gb ? `${device.ram_size_gb} GB` : 'Loading...'}</span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                            <span className="text-surface-400">Disk Technology</span>
+                            <span className="text-surface-700 font-medium">{device?.disk_type || 'Loading...'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass-card p-5 border-l-4 border-l-blue-500">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <Monitor className="w-4 h-4 text-blue-500" />
+                            <h2 className="text-sm font-semibold text-surface-700">Assignment Metadata</h2>
+                        </div>
+                        {!isEditing ? (
+                            <button onClick={() => setIsEditing(true)} className="text-[10px] btn-ghost px-2 py-1">Edit</button>
+                        ) : (
+                            <div className="flex gap-2">
+                                <button onClick={handleSaveMetadata} disabled={saving} className="text-[10px] btn-accent px-2 py-1">{saving ? '...' : 'Save'}</button>
+                                <button onClick={() => setIsEditing(false)} className="text-[10px] btn-ghost px-2 py-1">Cancel</button>
+                            </div>
+                        )}
+                    </div>
+                    <div className="space-y-3 text-xs">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-surface-400">Location</span>
+                            {!isEditing ? (
+                                <span className="text-surface-700 font-medium">{device?.location || 'Unassigned'}</span>
+                            ) : (
+                                <input
+                                    className="bg-surface-100 border border-surface-200 rounded px-2 py-1 outline-none focus:border-accent-500"
+                                    value={metadata.location}
+                                    onChange={e => setMetadata({ ...metadata, location: e.target.value })}
+                                />
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-surface-400">Asset Tag</span>
+                            {!isEditing ? (
+                                <span className="text-surface-700 font-medium">{device?.asset_tag || 'N/A'}</span>
+                            ) : (
+                                <input
+                                    className="bg-surface-100 border border-surface-200 rounded px-2 py-1 outline-none focus:border-accent-500"
+                                    value={metadata.asset_tag}
+                                    onChange={e => setMetadata({ ...metadata, asset_tag: e.target.value })}
+                                />
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-surface-400">Assigned User</span>
+                            {!isEditing ? (
+                                <span className="text-surface-700 font-medium">{device?.assigned_user || 'None'}</span>
+                            ) : (
+                                <input
+                                    className="bg-surface-100 border border-surface-200 rounded px-2 py-1 outline-none focus:border-accent-500"
+                                    value={metadata.assigned_user}
+                                    onChange={e => setMetadata({ ...metadata, assigned_user: e.target.value })}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Live stats panel */}
             {latestRecord && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -182,6 +339,16 @@ export default function DeviceDetail() {
                         </p>
                         <p className="text-[10px] text-surface-400">Top Process</p>
                     </div>
+
+                    {/* S.M.A.R.T. Health (Phase 1) */}
+                    <div className="glass-card p-4 text-center">
+                        <Activity className={`w-4 h-4 mx-auto mb-1 ${latestRecord.disk_health === 'GOOD' ? 'text-emerald-500' :
+                            latestRecord.disk_health === 'WARNING' ? 'text-amber-500' : 'text-rose-500'
+                            }`} />
+                        <p className="text-lg font-bold text-surface-800">{latestRecord.disk_health || 'GOOD'}</p>
+                        <p className="text-[10px] text-surface-400">Disk Health (S.M.A.R.T.)</p>
+                    </div>
+
                     <div className="glass-card p-4 text-center">
                         <Clock className="w-4 h-4 text-surface-400 mx-auto mb-1" />
                         <p className="text-sm font-bold text-surface-800">
@@ -206,6 +373,70 @@ export default function DeviceDetail() {
                         {r}
                     </button>
                 ))}
+            </div>
+
+            {/* Remote Actions (Phase 1) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="glass-card p-6 bg-surface-900 text-white overflow-hidden relative lg:col-span-1">
+                    <div className="relative z-10 h-full flex flex-col">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Terminal className="w-4 h-4 text-accent-400" />
+                            <h2 className="text-sm font-semibold">Remote Maintenance Actions</h2>
+                        </div>
+                        <div className="flex flex-col gap-3 mt-auto">
+                            <button
+                                onClick={() => triggerAction('FORCE_SYNC')}
+                                disabled={actionLoading}
+                                className="btn-accent text-xs flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl shadow-lg shadow-accent-500/20 disabled:opacity-50"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
+                                Force Telemetry Sync
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass-card p-6 lg:col-span-2">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Clock className="w-4 h-4 text-surface-400" />
+                        <h2 className="text-sm font-semibold text-surface-700">Recent Actions Log</h2>
+                    </div>
+                    {recentActions.length === 0 ? (
+                        <p className="text-xs text-surface-400 italic">No remote actions recorded recently.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {recentActions.map(action => (
+                                <div key={action.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-50 border border-surface-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-1.5 rounded-lg ${action.status === 'completed' ? 'bg-emerald-100 text-emerald-600' :
+                                            action.status === 'failed' ? 'bg-rose-100 text-rose-600' :
+                                                'bg-amber-100 text-amber-600'
+                                            }`}>
+                                            {action.command === 'REBOOT' ? <ZapOff className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-surface-800">{action.command}</p>
+                                            <p className="text-[10px] text-surface-400">{new Date(action.created_at).toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${action.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                            action.status === 'failed' ? 'bg-rose-100 text-rose-700' :
+                                                'bg-amber-100 text-amber-700'
+                                            }`}>
+                                            {action.status}
+                                        </span>
+                                        {action.error_message && (
+                                            <p className="text-[10px] text-rose-500 mt-1 max-w-[200px] truncate" title={action.error_message}>
+                                                {action.error_message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Charts */}

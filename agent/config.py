@@ -9,7 +9,10 @@ import platform
 from dotenv import load_dotenv
 
 # ── Load environment variables ──────────────────────────────────────
-load_dotenv()
+# Find the root .env file regardless of where we start from
+_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_env_path = os.path.join(_base_dir, ".env")
+load_dotenv(_env_path)
 
 # ── Supabase credentials ────────────────────────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
