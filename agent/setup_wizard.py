@@ -2,109 +2,152 @@
 setup_wizard.py — First-Run Setup Wizard
 Laptop Life-Saver System | Nyanza District
 
-A lightweight GUI to collect user info and establish privacy trust.
+A modern CustomTkinter GUI to collect user info and establish privacy trust.
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox
+import customtkinter as ctk
 import json
 import os
-from PIL import Image, ImageTk
+from typing import Optional, Any
+from PIL import Image
+
+# Set the overall appearance
+ctk.set_appearance_mode("Dark")
+ctk.set_default_color_theme("blue")
 
 class SetupWizard:
     def __init__(self, logo_path, config_path):
-        self.root = tk.Tk()
+        self.root = ctk.CTk()
         self.root.title("Laptop Life-Saver — Setup")
         self.root.geometry("500x550")
         self.root.resizable(False, False)
         
         self.logo_path = logo_path
         self.config_path = config_path
-        self.result = None
+        self.result: dict[str, Any] = {}
         
-        # Style
-        self.style = ttk.Style()
-        self.style.configure("TLabel", font=("Segoe UI", 10))
-        self.style.configure("Header.TLabel", font=("Segoe UI", 14, "bold"))
-        self.style.configure("TButton", font=("Segoe UI", 10, "bold"))
+        # UI Attributes (typed for Pyre, never None)
+        self.ent_user = ctk.CTkEntry(self.root)
+        self.ent_email = ctk.CTkEntry(self.root)
+        self.ent_dept = ctk.CTkEntry(self.root)
+        self.ent_tag = ctk.CTkEntry(self.root)
+        self.error_label = ctk.CTkLabel(self.root, text="")
         
         # Main Container
-        self.container = ttk.Frame(self.root, padding="30")
-        self.container.pack(fill="both", expand=True)
+        self.container = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.container.pack(fill="both", expand=True, padx=40, pady=40)
         
         self.show_privacy_screen()
+
+    def _clear_container(self):
+        for widget in self.container.winfo_children():
+            widget.destroy()
 
     def show_privacy_screen(self):
         self._clear_container()
         
         # Logo
         try:
-            img = Image.open(self.logo_path).resize((80, 80))
-            self.photo = ImageTk.PhotoImage(img)
-            ttk.Label(self.container, image=self.photo).pack(pady=10)
-        except:
+            img = Image.open(self.logo_path)
+            logo_image = ctk.CTkImage(light_image=img, dark_image=img, size=(80, 80))
+            logo_label = ctk.CTkLabel(self.container, image=logo_image, text="")
+            logo_label.pack(pady=(0, 15))
+        except Exception:
             pass
             
-        ttk.Label(self.container, text="Your Privacy Shield", style="Header.TLabel").pack(pady=10)
+        header = ctk.CTkLabel(self.container, text="Your Privacy Shield", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"))
+        header.pack(pady=(0, 15))
         
-        privacy_text = (
-            "Laptop Life-Saver is designed to protect your device hardware. "
-            "To build your trust, here is what we do and DON'T do:\n\n"
-            "🛡️ WE MONITOR: CPU Temperature, Battery Health, Disk Usage, and Basic Performance.\n\n"
-            "❌ WE NEVER ACCESS: Your personal files, photos, browser history, "
-            "passwords, or private messages.\n\n"
-            "This system exists only to ensure your laptop doesn't fail "
-            "unexpectedly during your hard work."
-        )
-        
-        lbl = tk.Label(
+        intro = ctk.CTkLabel(
             self.container, 
-            text=privacy_text, 
-            wraplength=400, 
-            justify="left", 
-            font=("Segoe UI", 10),
-            fg="#444"
+            text="Laptop Life-Saver is designed to protect your device hardware. To build your trust, here is exactly what we do and don't do:",
+            justify="center",
+            wraplength=380,
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            text_color="gray80"
         )
-        lbl.pack(pady=20)
+        intro.pack(pady=(0, 15))
         
-        btn_frame = ttk.Frame(self.container)
-        btn_frame.pack(side="bottom", fill="x", pady=20)
+        # We Monitor Card (Green Accent)
+        monitor_frame = ctk.CTkFrame(self.container, fg_color="#1e293b", corner_radius=8)
+        monitor_frame.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(monitor_frame, text="🛡️ WE MONITOR", font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"), text_color="#10b981").pack(anchor="w", padx=15, pady=(10, 5))
         
-        ttk.Button(btn_frame, text="I Understand & Accept", command=self.show_info_screen).pack(fill="x")
+        # Monitor Checklist
+        check_font = ctk.CTkFont(family="Segoe UI", size=12)
+        ctk.CTkLabel(monitor_frame, text="✔️ CPU Temperature & Load", font=check_font).pack(anchor="w", padx=25, pady=(0, 2))
+        ctk.CTkLabel(monitor_frame, text="✔️ Battery Health & Capacity", font=check_font).pack(anchor="w", padx=25, pady=2)
+        ctk.CTkLabel(monitor_frame, text="✔️ Disk Storage Availability", font=check_font).pack(anchor="w", padx=25, pady=(2, 10))
+
+        # We Never Access Card (Red Accent)
+        never_frame = ctk.CTkFrame(self.container, fg_color="#1e293b", corner_radius=8)
+        never_frame.pack(fill="x", pady=(0, 15))
+        ctk.CTkLabel(never_frame, text="❌ WE NEVER ACCESS", font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold"), text_color="#ef4444").pack(anchor="w", padx=15, pady=(10, 5))
+        
+        # Access Checklist
+        ctk.CTkLabel(never_frame, text="✖️ Personal Files & Documents", font=check_font, text_color="gray80").pack(anchor="w", padx=25, pady=(0, 2))
+        ctk.CTkLabel(never_frame, text="✖️ Browser History & Passwords", font=check_font, text_color="gray80").pack(anchor="w", padx=25, pady=2)
+        ctk.CTkLabel(never_frame, text="✖️ Private Messages & Emails", font=check_font, text_color="gray80").pack(anchor="w", padx=25, pady=(2, 10))
+        
+        conclusion = ctk.CTkLabel(
+            self.container, 
+            text="This system exists purely to ensure your laptop doesn't fail unexpectedly during your daily work.",
+            justify="center",
+            wraplength=380,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color="gray60"
+        )
+        conclusion.pack(pady=(0, 10))
+        
+        btn = ctk.CTkButton(
+            self.container, 
+            text="I Understand & Accept", 
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            height=40,
+            command=self.show_info_screen
+        )
+        btn.pack(side="bottom", fill="x", pady=(20, 0))
 
     def show_info_screen(self):
         self._clear_container()
         
-        ttk.Label(self.container, text="Identify Your Device", style="Header.TLabel").pack(pady=10)
-        ttk.Label(self.container, text="This helps the IT team assist you better.", foreground="gray").pack(pady=5)
+        header = ctk.CTkLabel(self.container, text="Identify Your Device", font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"))
+        header.pack(pady=(0, 5))
         
-        # Fields
-        ttk.Label(self.container, text="Assigned User (Your Name):").pack(anchor="w", pady=(15, 0))
-        self.ent_user = ttk.Entry(self.container, font=("Segoe UI", 11))
-        self.ent_user.pack(fill="x", pady=5)
+        sub = ctk.CTkLabel(self.container, text="This helps the Nyanza IT team assist you better.", font=ctk.CTkFont(family="Segoe UI", size=12), text_color="gray60")
+        sub.pack(pady=(0, 15))
         
-        ttk.Label(self.container, text="Your Email Address:").pack(anchor="w", pady=(10, 0))
-        self.ent_email = ttk.Entry(self.container, font=("Segoe UI", 11))
-        self.ent_email.pack(fill="x", pady=5)
-        
-        ttk.Label(self.container, text="Department / School:").pack(anchor="w", pady=(10, 0))
-        self.ent_dept = ttk.Entry(self.container, font=("Segoe UI", 11))
-        self.ent_dept.pack(fill="x", pady=5)
-        
-        ttk.Label(self.container, text="Asset Tag (Physical ID on laptop):").pack(anchor="w", pady=(10, 0))
-        self.ent_tag = ttk.Entry(self.container, font=("Segoe UI", 11))
-        self.ent_tag.pack(fill="x", pady=5)
-        
-        btn_frame = ttk.Frame(self.container)
-        btn_frame.pack(side="bottom", fill="x", pady=20)
-        
-        ttk.Button(btn_frame, text="Finish Setup", command=self.save_and_exit).pack(fill="x")
+        # Helper to create styled forms
+        def create_input(parent, label_text):
+            ctk.CTkLabel(parent, text=label_text, font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold")).pack(anchor="w")
+            entry = ctk.CTkEntry(parent, font=ctk.CTkFont(size=13), height=32, corner_radius=6)
+            entry.pack(fill="x", pady=(2, 6))
+            return entry
 
-    def _clear_container(self):
-        for widget in self.container.winfo_children():
-            widget.destroy()
+        self.ent_user = create_input(self.container, "Assigned User (Your Name):")
+        self.ent_email = create_input(self.container, "Your Email Address:")
+        self.ent_dept = create_input(self.container, "Department / School:")
+        self.ent_tag = create_input(self.container, "Asset Tag (Physical ID on laptop):")
+        
+        # Error Label
+        self.error_label = ctk.CTkLabel(self.container, text="", text_color="red", font=ctk.CTkFont(size=12))
+        self.error_label.pack(pady=(5, 0))
+
+        btn = ctk.CTkButton(
+            self.container, 
+            text="Finish Setup", 
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            height=40,
+            fg_color="#10b981", # Tailwind Emerald 500
+            hover_color="#059669", # Tailwind Emerald 600
+            command=self.save_and_exit
+        )
+        btn.pack(side="bottom", fill="x", pady=(15, 0))
 
     def save_and_exit(self):
+        if not self.ent_user or not self.ent_email or not self.ent_dept or not self.ent_tag or not self.error_label:
+            return
+
         data = {
             "assigned_user": self.ent_user.get().strip(),
             "user_email": self.ent_email.get().strip(),
@@ -114,7 +157,7 @@ class SetupWizard:
         }
         
         if not data["assigned_user"] or not data["user_email"]:
-            messagebox.showwarning("Incomplete", "Please at least provide your name and email.")
+            self.error_label.configure(text="⚠️ Please at least provide your name and email.")
             return
             
         try:
@@ -123,7 +166,7 @@ class SetupWizard:
             self.result = data
             self.root.destroy()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save setup: {e}")
+            self.error_label.configure(text=f"Error saving: {e}")
 
     def run(self):
         # Center the window

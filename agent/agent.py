@@ -32,6 +32,10 @@ from agent.hardware_monitor import collect_snapshot
 from agent.local_buffer import CircularBuffer
 from agent.cloud_sync import register_device, send_telemetry, send_alert, flush_buffer
 from agent.data_retention import should_run_cleanup, aggregate_and_cleanup, mark_cleanup_done
+from agent.utils import get_resource_path, get_install_path, is_running_from_install_path
+import shutil
+import ctypes
+import subprocess
 
 # ── Logging setup ───────────────────────────────────────────────────
 logging.basicConfig(
@@ -172,16 +176,62 @@ def main_loop(device_id: Optional[str], buffer: CircularBuffer) -> None:
 
 def load_user_config() -> Optional[dict]:
     """Load user metadata from local JSON, or return None if first run."""
-    config_path = os.path.join(os.path.dirname(__file__), "user_config.json")
+    # Config is stored in user's AppData to avoid permission issues in Program Files
+    appdata_path = os.path.join(os.environ.get("LOCALAPPDATA", "."), "LaptopLifeSaver")
+    if not os.path.exists(appdata_path):
+        os.makedirs(appdata_path, exist_ok=True)
+    
+    config_path = os.path.join(appdata_path, "user_config.json")
     if os.path.exists(config_path):
         try:
             with open(config_path, "r") as f:
+                import json
                 return json.load(f)
         except Exception as e:
             logger.error("Failed to load user config: %s", e)
     return None
 
+def check_for_installation():
+    """If not in Program Files, ask to move there."""
+    if is_running_from_install_path():
+        return
+
+    # Check if we are already 'installed' but just running a new version from elsewhere
+    install_folder = get_install_path()
+    target_exe = os.path.join(install_folder, "LaptopLifeSaver_Agent.exe")
+    
+    # If running from a temp folder or downloads, propose installation
+    if not ctypes.windll.shell32.IsUserAnAdmin():
+        logger.info("Relaunching as admin for installation...")
+        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, None, None, 1)
+        sys.exit(0)
+
+    # Perform Installation
+    if not os.path.exists(install_folder):
+        os.makedirs(install_folder, exist_ok=True)
+    
+    logger.info(f"Installing agent to {install_folder}...")
+    try:
+        shutil.copy2(sys.executable, target_exe)
+        # Copy logo if it exists locally, though we also embed it
+        src_logo = os.path.join(os.path.dirname(sys.executable), "Logo.png")
+        if os.path.exists(src_logo):
+            shutil.copy2(src_logo, os.path.join(install_folder, "Logo.png"))
+            
+        # Create a basic .env if URL/Key passed or use defaults
+        # (This would be handled by the wizard usually)
+        
+        logger.info("Installation complete. Launching installed agent...")
+        subprocess.Popen([target_exe])
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Installation failed: {e}")
+
 def main() -> None:
+    # Trigger self-installation if needed
+    if getattr(sys, 'frozen', False):
+        check_for_installation()
+
     logger.info("═══════════════════════════════════════════════════")
     logger.info("  Laptop Life-Saver Agent v%s", AGENT_VERSION)
     logger.info("  Poll interval: %ds", POLL_INTERVAL)
@@ -192,8 +242,9 @@ def main() -> None:
     if not user_info:
         logger.info("First run detected — launching Setup Wizard...")
         from agent.setup_wizard import run_wizard
-        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.png")
-        config_path = os.path.join(os.path.dirname(__file__), "user_config.json")
+        logo_path = get_resource_path("Logo.png")
+        appdata_path = os.path.join(os.environ.get("LOCALAPPDATA", "."), "LaptopLifeSaver")
+        config_path = os.path.join(appdata_path, "user_config.json")
         user_info = run_wizard(logo_path, config_path)
         
     # Step 1 — Register device (with initial hardware inventory and user info)
@@ -215,7 +266,7 @@ def main() -> None:
 
     # Start the Tray Icon on the main thread (blocking)
     from agent.tray import AgentTray
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.png")
+    logo_path = get_resource_path("Logo.png")
     
     def on_exit():
         logger.info("Shutting down agent...")
