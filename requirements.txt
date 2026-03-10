@@ -1,6 +1,7 @@
 psutil>=5.9.0
 pywin32>=306
-WMI>=1.5.1
+pypiwin32
+wmi>=1.5.1
 supabase>=2.0.0
 python-dotenv>=1.0.0
 pystray>=0.19.5

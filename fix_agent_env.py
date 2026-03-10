@@ -2,13 +2,13 @@ import sys
 import subprocess
 
 def install_requirements():
-    print("📦 Installing missing dependencies from requirements.txt...")
+    print("📦 Installing/Updating dependencies from requirements.txt...")
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-        print("✅ All dependencies installed successfully!")
+        print("✅ Dependencies process finished.")
     except Exception as e:
         print(f"❌ Failed to install dependencies: {e}")
-        sys.exit(1)
+        # We continue to verify even if pip had a warning
 
 def verify_imports():
     print("\n🔍 Verifying critical imports...")
@@ -33,6 +33,9 @@ def verify_imports():
 
     if missing:
         print(f"\n⚠️ Still missing: {', '.join(missing)}")
+        if "wmi" in missing:
+            print("\n💡 TIP: For 'wmi', try running this manual command:")
+            print(f"   {sys.executable} -m pip install wmi pypiwin32")
         return False
     
     print("\n🎉 Environment is healthy and ready to run the agent!")
@@ -40,5 +43,11 @@ def verify_imports():
 
 if __name__ == "__main__":
     install_requirements()
-    if verify_imports():
-        print("\nYou can now run the agent or rebuild the EXE.")
+    if not verify_imports():
+        print("\nTrying one last time to fix 'wmi' specifically...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "wmi", "pypiwin32"])
+            verify_imports()
+        except:
+            pass
+    print("\nIf 'wmi' is still missing, please restart your terminal and try again.")
