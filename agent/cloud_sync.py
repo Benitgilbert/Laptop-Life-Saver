@@ -1,9 +1,5 @@
-"""
-cloud_sync.py — Supabase Cloud Synchronisation
-Laptop Life-Saver System | Nyanza District
-
-Handles device registration, telemetry uploads, and offline buffer flush.
-"""
+import logging
+from typing import Optional
 
 from .config import SUPABASE_URL, SUPABASE_KEY, DEVICE_HOSTNAME, OS_VERSION
 from .hardware_monitor import get_mac_address
