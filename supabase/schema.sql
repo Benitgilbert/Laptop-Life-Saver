@@ -40,11 +40,25 @@ CREATE TABLE IF NOT EXISTS devices (
     -- Hardware Inventory (Phase 1)
     cpu_model       text,
     disk_type       text,           -- SSD or HDD
-    ram_size_gb     real
+    ram_size_gb     real,
+    
+    -- Data Science & Machine Learning Predictions (Phase 2)
+    ai_health_score real            DEFAULT 100.0, -- Isolation Forest Anomaly Score (0-100)
+    predicted_disk_full_days int,   -- Linear Regression RUL forecast
+    usage_profile   text,           -- K-Means Classification (e.g., 'Light Web Browsing', 'Heavy Development')
+    root_cause_insight text,        -- Decision Tree analysis (e.g., 'Google Chrome is causing 80% of overheating')
+    battery_degradation_warning boolean DEFAULT false, -- Polynomial Regression forecast
+    malware_suspicion boolean       DEFAULT false  -- High continuous CPU during off-hours
 );
 
 COMMENT ON TABLE  devices IS 'Registered laptops in the Nyanza District fleet';
 COMMENT ON COLUMN devices.hostname IS 'Windows machine name (unique identifier)';
+COMMENT ON COLUMN devices.ai_health_score IS 'ML-generated health score based on historical anomaly detection';
+COMMENT ON COLUMN devices.predicted_disk_full_days IS 'ML-generated forecast of Remaining Useful Life until disk exhaustion';
+COMMENT ON COLUMN devices.usage_profile IS 'ML classification of the laptop''s typical workload';
+COMMENT ON COLUMN devices.root_cause_insight IS 'ML analysis identifying specific processes driving high resource usage';
+COMMENT ON COLUMN devices.battery_degradation_warning IS 'ML prediction of permanent battery failure';
+COMMENT ON COLUMN devices.malware_suspicion IS 'ML anomaly detection flagging potential cryptomining or background malware';
 
 
 -- ─────────────────────────────────────────────────────────────────

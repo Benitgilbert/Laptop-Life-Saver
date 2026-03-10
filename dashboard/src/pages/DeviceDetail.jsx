@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import {
     ArrowLeft, Monitor, Thermometer, MemoryStick, HardDrive, Battery,
     BatteryCharging, Clock, Cpu, Plug, ZapOff, Gauge, ShieldCheck,
-    Info, ExternalLink, RefreshCw, Terminal, Activity
+    Info, ExternalLink, RefreshCw, Terminal, Activity, Brain, ShieldAlert, AlertTriangle, Crosshair
 } from 'lucide-react'
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart,
@@ -376,6 +376,90 @@ export default function DeviceDetail() {
                     </div>
                 </div>
             )}
+
+            {/* AI & Data Science Insights Panel (Phase 2 ML Integration) */}
+            <div className="glass-card p-6 border-t-4 border-t-fuchsia-500 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Brain className="w-32 h-32 text-fuchsia-500" />
+                </div>
+                <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Brain className="w-5 h-5 text-fuchsia-500" />
+                        <h2 className="text-lg font-bold text-surface-800">Data Science & Predictive Insights</h2>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* 1. Isolation Forest -> AI Health Score */}
+                        <div className="bg-surface-50 p-4 rounded-xl border border-surface-100 flex flex-col justify-center items-center">
+                            <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Behavioral Anomaly Score</h3>
+                            <div className={`text-4xl font-extrabold ${device?.ai_health_score >= 80 ? 'text-emerald-500' : device?.ai_health_score >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
+                                {device?.ai_health_score ?? 100}%
+                            </div>
+                            <p className="text-[10px] text-surface-400 mt-1 text-center">Via Isolation Forest ML</p>
+                        </div>
+
+                        {/* 2. Linear Regression -> Disk RUL */}
+                        <div className="bg-surface-50 p-4 rounded-xl border border-surface-100 flex flex-col justify-center items-center">
+                            <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Disk Exhaustion Forecast</h3>
+                            <div className="flex items-center gap-2">
+                                <HardDrive className="w-6 h-6 text-blue-500" />
+                                <span className={`text-2xl font-bold ${device?.predicted_disk_full_days < 14 ? 'text-rose-500' : 'text-surface-800'}`}>
+                                    {device?.predicted_disk_full_days ? `${device?.predicted_disk_full_days} Days Left` : 'Stable 999+ Days'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-surface-400 mt-1 text-center">Via Linear Regression</p>
+                        </div>
+
+                        {/* 3. Classification -> Usage Profile */}
+                        <div className="bg-surface-50 p-4 rounded-xl border border-surface-100 flex flex-col justify-center items-center">
+                            <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Usage Classification</h3>
+                            <div className="flex items-center gap-2">
+                                <Crosshair className="w-6 h-6 text-indigo-500" />
+                                <span className="text-lg font-bold text-surface-800 text-center">
+                                    {device?.usage_profile || 'Gathering Data...'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-surface-400 mt-1 text-center">Via K-Means Clustering</p>
+                        </div>
+                        
+                        {/* 4. Decision Trees -> Root Cause */}
+                        <div className="bg-surface-50 p-4 rounded-xl border border-surface-100 flex flex-col justify-center items-center">
+                            <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Overheating Root Cause</h3>
+                            <div className="flex items-center gap-2">
+                                <Thermometer className="w-6 h-6 text-orange-500" />
+                                <span className="text-sm font-bold text-surface-800 text-center">
+                                    {device?.root_cause_insight || 'No thermal incidents detected'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-surface-400 mt-1 text-center">Via Decision Tree Analysis</p>
+                        </div>
+
+                        {/* 5. Crypto/Malware Detection */}
+                        <div className={`p-4 rounded-xl border flex flex-col justify-center items-center ${device?.malware_suspicion ? 'bg-rose-50 border-rose-200' : 'bg-surface-50 border-surface-100'}`}>
+                            <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Security Threat Analysis</h3>
+                            <div className={`flex items-center gap-2 ${device?.malware_suspicion ? 'text-rose-600' : 'text-emerald-500'}`}>
+                                {device?.malware_suspicion ? <ShieldAlert className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+                                <span className="text-lg font-bold">
+                                    {device?.malware_suspicion ? 'Cryptomining Suspected' : 'Clean & Normal'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-surface-400 mt-1 text-center">Via Off-Hour Behavioral Analysis</p>
+                        </div>
+
+                        {/* 6. Battery Degradation */}
+                        <div className={`p-4 rounded-xl border flex flex-col justify-center items-center ${device?.battery_degradation_warning ? 'bg-amber-50 border-amber-200' : 'bg-surface-50 border-surface-100'}`}>
+                            <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Battery Failure Warning</h3>
+                            <div className={`flex items-center gap-2 ${device?.battery_degradation_warning ? 'text-amber-600' : 'text-emerald-500'}`}>
+                                {device?.battery_degradation_warning ? <AlertTriangle className="w-6 h-6" /> : <Battery className="w-6 h-6" />}
+                                <span className="text-lg font-bold">
+                                    {device?.battery_degradation_warning ? 'Permanent Degradation' : 'Healthy Retention'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-surface-400 mt-1 text-center">Via Discharge Curve Analysis</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* Time range selector */}
             <div className="flex gap-2">
