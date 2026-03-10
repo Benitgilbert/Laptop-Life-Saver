@@ -39,7 +39,11 @@ The dashboard provides fleet-wide visibility and can be hosted for free.
     *   **Root Directory:** `dashboard`
     *   **Build Command:** `npm run build`
     *   **Output Directory:** `dist`
-4.  **Environment Variables:** Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` (use your **Public Anon** key).
+4.  **Environment Variables:**
+    > [!IMPORTANT]
+    > For Vite to expose variables to the browser, they **MUST** start with `VITE_`.
+    *   Add `VITE_SUPABASE_URL` (your Project URL).
+    *   Add `VITE_SUPABASE_KEY` (your **Public Anon** key).
 
 ---
 
