@@ -36,3 +36,8 @@ local_buffer.json
 
 # Diagnostic scripts
 test_alerts.js
+
+# Local User Config
+user_config.json
+.env
+

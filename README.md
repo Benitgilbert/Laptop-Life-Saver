@@ -38,27 +38,22 @@ graph LR
 
 ## 🚦 Quick Start
 
-### Python Agent Setup
-```bash
-# 1. Activate the environment
-.venv\Scripts\activate
+### 🛡️ Windows Agent (Automatic Installation)
+The agent now handles its own installation to `C:\Program Files\`.
+1. Run **LaptopLifeSaver_Agent.exe** from any location.
+2. The agent will ask for Admin permission to install itself permanently.
+3. Follow the setup wizard to register your device.
 
-# 2. Run the agent
-python -m agent.agent
-```
-
-### Dashboard Setup
-```bash
-cd dashboard
-npm install
-npm run dev
-```
+### 📊 Dashboard
+1. Open a terminal in the `dashboard` folder.
+2. Run `npm run dev`.
+3. Open `http://localhost:5173`.
 
 ## 🧪 Automated Testing
 Run the full test suite to ensure system reliability:
-- **Agent:** `python -m pytest agent/tests/`
+- **Agent:** `python -m pytest agent/tests/` (requires Python environment)
 - **Dashboard:** `cd dashboard && npm test`
 
 ## 📖 Documentation
-- [Detailed Deployment Guide](file:///c:/FYP/DEPLOYMENT_GUIDE.md)
-- [Supabase Schema Documentation](file:///c:/FYP/supabase/schema.sql)
+- [Detailed Deployment Guide](./DEPLOYMENT_GUIDE.md)
+- [Supabase Schema Documentation](./supabase/schema.sql)

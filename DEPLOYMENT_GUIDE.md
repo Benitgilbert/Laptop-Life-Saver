@@ -7,54 +7,54 @@ This guide outlines the steps to deploy the Laptop Life-Saver system for monitor
 The system uses **Supabase** as its real-time database and authentication provider.
 
 1.  **Create Project:** Sign up at [supabase.com](https://supabase.com) and create a new project named `Nyanza-Fleet-Monitor`.
-2.  **Database Schema:**
-    *   Navigate to the **SQL Editor** in the side menu.
-    *   Click **New Query**.
-    *   Copy [schema.sql](file:///c:/FYP/supabase/schema.sql) content and run it. This creates the `devices`, `telemetry`, `alerts`, `threshold_settings`, and `remote_actions` tables.
+10. **Database Schema:**
+    * Copy [schema.sql](./supabase/schema.sql) content and run it in the Supabase SQL Editor. This creates all necessary tables.
 3.  **API Credentials:**
     *   Go to **Project Settings** > **API**.
     *   Note down your **Project URL** and the **service_role** key (used by agents) and **anon public** key (used by the dashboard).
 
 ---
 
-## 2. Python Agent Deployment (Endpoint)
-The agent should be installed on every Windows laptop in the fleet.
-
-### Prerequisites
-- Python 3.10 or later.
-- Internet connectivity (or local caching will be used).
+## 2. Windows Agent Deployment
+The agent is a smart executable that installs itself to `C:\Program Files\LaptopLifeSaver`.
 
 ### Installation Steps
-1.  **Clone/Copy Files:** Copy the `agent/` folder to `C:\Program Files\LaptopLifeSaver\`.
-2.  **Configuration:**
-    *   Create a `.env` file in the root directory.
-    *   Add following keys:
-        ```env
-        SUPABASE_URL=your_project_url
-        SUPABASE_KEY=your_service_role_key
-        POLL_INTERVAL=30
-        ```
-3.  **Run Agent:**
-    ```bash
-    python -m agent.agent
-    ```
+1.  **Run Executable:** Simply launch `LaptopLifeSaver_Agent.exe` from any location (USB, Downloads, etc.).
+2.  **Auto-Install:** The app will automatically ask for Admin rights to move itself to the official Program Files folder.
+3.  **Configuration:** It will then launch the setup wizard to collect device and user information.
+4.  **Run:** The agent is now installed and will minimize to the system tray.
 
 ---
 
-## 3. Dashboard Deployment (Admin)
-The dashboard provides fleet-wide visibility for IT managers.
+---
 
-### Setup
-1.  **Environment:** Create `dashboard/.env` with your `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-2.  **Build:**
-    ```bash
-    cd dashboard
-    npm install
-    npm run build
-    ```
-3.  **Hosting:** Deploy the `dist/` folder to Vercel, Netlify, or your preferred static site hosting.
+## 3. Cloud Dashboard Deployment (Admin)
+The dashboard provides fleet-wide visibility and can be hosted for free.
+
+### Setup using Vercel
+1.  **Repository:** Push your code to GitHub/GitLab.
+2.  **Deploy:** Connect your repository to [Vercel](https://vercel.com).
+3.  **Build Settings:**
+    *   **Framework Preset:** Vite
+    *   **Root Directory:** `dashboard`
+    *   **Build Command:** `npm run build`
+    *   **Output Directory:** `dist`
+4.  **Environment Variables:** Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` (use your **Public Anon** key).
 
 ---
+
+## 4. Cloud ML Engine Deployment
+To run Data Science models automatically (Anomaly Detection, Predictors), you need a cloud runner.
+
+### Option A: GitHub Actions (Free & Automatic)
+1.  **Secrets:** In your GitHub Repo, go to **Settings > Secrets > Actions**.
+2.  **Add Secrets:** Add `SUPABASE_URL` and `SUPABASE_KEY` (use **Service Role** key).
+3.  **Workflow:** The system includes a workflow in `.github/workflows/ml_pipeline.yml` that runs the analytics every 6 hours automatically.
+
+### Option B: Render.com (Background Worker)
+1.  **New Service:** Create a **Background Worker**.
+2.  **Command:** `python cloud_ml_runner.py`
+3.  **Environment:** Set `SUPABASE_URL` and `SUPABASE_KEY`.
 
 ## 4. Operational Best Practices
 - **Alerting:** Ensure browser notifications are enabled to receive critical hardware alerts.
