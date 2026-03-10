@@ -19,7 +19,7 @@ class SetupWizard:
     def __init__(self, logo_path, config_path):
         self.root = ctk.CTk()
         self.root.title("Laptop Life-Saver — Setup")
-        self.root.geometry("500x550")
+        self.root.geometry("500x600")
         self.root.resizable(False, False)
         
         self.logo_path = logo_path
@@ -33,9 +33,9 @@ class SetupWizard:
         self.ent_tag = ctk.CTkEntry(self.root)
         self.error_label = ctk.CTkLabel(self.root, text="")
         
-        # Main Container
-        self.container = ctk.CTkFrame(self.root, fg_color="transparent")
-        self.container.pack(fill="both", expand=True, padx=40, pady=40)
+        # Main Container - Now Scrollable for high-DPI support
+        self.container = ctk.CTkScrollableFrame(self.root, fg_color="transparent")
+        self.container.pack(fill="both", expand=True, padx=20, pady=20)
         
         self.show_privacy_screen()
 
