@@ -5,10 +5,8 @@ Laptop Life-Saver System | Nyanza District
 Handles device registration, telemetry uploads, and offline buffer flush.
 """
 
-import logging
-from typing import Optional
-
 from .config import SUPABASE_URL, SUPABASE_KEY, DEVICE_HOSTNAME, OS_VERSION
+from .hardware_monitor import get_mac_address
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,8 @@ def register_device(inventory: Optional[dict] = None, user_info: Optional[dict] 
     try:
         payload = {
             "hostname": DEVICE_HOSTNAME, 
-            "os_version": OS_VERSION
+            "os_version": OS_VERSION,
+            "mac_address": get_mac_address()
         }
         
         # Add user metadata if provided (from first-run setup)
@@ -74,7 +73,7 @@ def register_device(inventory: Optional[dict] = None, user_info: Optional[dict] 
 
         result = (
             client.table("devices")
-            .upsert(payload, on_conflict="hostname")
+            .upsert(payload, on_conflict="mac_address")
             .execute()
         )
         device_id = result.data[0]["id"]
@@ -105,7 +104,7 @@ def send_telemetry(device_id: str, record: dict) -> bool:
             "device_id", "recorded_at", "cpu_temp_c", "cpu_usage_pct", 
             "battery_percent", "battery_plugged", "ram_usage_pct", 
             "disk_usage_pct", "top_process", "health_status", 
-            "disk_health", "disk_wear_pct"
+            "disk_health", "disk_wear_pct", "mac_address"
         }
         
         payload = {k: v for k, v in record.items() if k in allowed_keys}

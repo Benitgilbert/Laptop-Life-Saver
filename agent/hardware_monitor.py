@@ -13,8 +13,20 @@ import subprocess
 from typing import Any, Optional
 
 import psutil
+import uuid
 
 logger = logging.getLogger(__name__)
+
+def get_mac_address() -> str:
+    """Return the MAC address of the primary network interface."""
+    try:
+        # Get MAC address in a human-readable format (e.g., '00:1A:2B:3C:4D:5E')
+        mac_num = uuid.getnode()
+        mac_hex = ':'.join(['{:02x}'.format((mac_num >> ele) & 0xff) for ele in range(0, 8*6, 8)][::-1])
+        return mac_hex.upper()
+    except Exception as e:
+        logger.error(f"Failed to get MAC address: {e}")
+        return "00:00:00:00:00:00"
 
 # ── WMI import (Windows-only, graceful fallback) ────────────────
 _wmi_client: Any = None
@@ -117,8 +129,10 @@ def read_disk_usage() -> float:
     try:
         # Get system drive (cross-platform)
         if sys.platform == "win32":
-            # Windows: use C: drive
-            path = "C:\\"
+            # Windows: use system drive (usually C:)
+            path = os.getenv('SystemDrive', 'C:')
+            if not path.endswith('\\'):
+                path += '\\'
         else:
             # Unix-like: use root
             path = "/"

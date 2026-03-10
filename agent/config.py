@@ -18,6 +18,20 @@ load_dotenv(_env_path)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
+# Fallback to user_config.json in AppData if not in .env
+if not SUPABASE_URL or not SUPABASE_KEY:
+    import json
+    appdata_path = os.path.join(os.environ.get("LOCALAPPDATA", "."), "LaptopLifeSaver")
+    config_path = os.path.join(appdata_path, "user_config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+                if not SUPABASE_URL: SUPABASE_URL = cfg.get("supabase_url", "")
+                if not SUPABASE_KEY: SUPABASE_KEY = cfg.get("supabase_key", "")
+        except Exception:
+            pass
+
 # ── Device identity ─────────────────────────────────────────────────
 DEVICE_HOSTNAME = socket.gethostname()
 OS_VERSION = f"{platform.system()} {platform.release()} {platform.version()}"

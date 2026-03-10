@@ -118,14 +118,25 @@ class SetupWizard:
         sub.pack(pady=(0, 15))
         
         # Helper to create styled forms
-        def create_input(parent, label_text):
+        def create_input(parent, label_text, placeholder=""):
             ctk.CTkLabel(parent, text=label_text, font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold")).pack(anchor="w")
-            entry = ctk.CTkEntry(parent, font=ctk.CTkFont(size=13), height=32, corner_radius=6)
+            entry = ctk.CTkEntry(parent, font=ctk.CTkFont(size=13), height=32, corner_radius=6, placeholder_text=placeholder)
             entry.pack(fill="x", pady=(2, 6))
             return entry
 
         self.ent_user = create_input(self.container, "Assigned User (Your Name):")
         self.ent_email = create_input(self.container, "Your Email Address:")
+        
+        # Optional: Add Supabase credentials if missing
+        from .config import SUPABASE_URL, SUPABASE_KEY
+        self.ent_url = None
+        self.ent_key = None
+        
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            ctk.CTkLabel(self.container, text="Cloud Configuration", font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"), text_color="#3b82f6").pack(anchor="w", pady=(10, 5))
+            self.ent_url = create_input(self.container, "Supabase Project URL:", "https://xxx.supabase.co")
+            self.ent_key = create_input(self.container, "Supabase Service Role Key:", "eyJh...")
+
         self.ent_dept = create_input(self.container, "Department / School:")
         self.ent_tag = create_input(self.container, "Asset Tag (Physical ID on laptop):")
         
@@ -155,6 +166,15 @@ class SetupWizard:
             "asset_tag": self.ent_tag.get().strip(),
             "setup_complete": True
         }
+        
+        if self.ent_url and self.ent_key:
+            data["supabase_url"] = self.ent_url.get().strip()
+            data["supabase_key"] = self.ent_key.get().strip()
+            
+            # Simple validation
+            if not data["supabase_url"].startswith("http"):
+                self.error_label.configure(text="⚠️ Invalid Supabase URL")
+                return
         
         if not data["assigned_user"] or not data["user_email"]:
             self.error_label.configure(text="⚠️ Please at least provide your name and email.")
