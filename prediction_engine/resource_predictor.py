@@ -13,7 +13,7 @@ class ResourcePredictor:
         """
         self.supabase: Client = create_client(supabase_url, supabase_key)
 
-    def predict_days_until_disk_full(self, device_id: str, days_history: int = 14) -> int:
+    def predict_days_until_disk_full(self, device_id: str, days_history: int = 2) -> int:
         """
         Analyzes the historical trend of disk usage for a specific device.
         Uses Line-of-Best-Fit (Linear Regression) to predict exactly how many days
