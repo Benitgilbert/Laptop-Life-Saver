@@ -23,11 +23,18 @@ class AnomalyDetector:
 
     def fetch_training_data(self, limit: int = 5000) -> pd.DataFrame:
         """Fetch historical telemetry from Supabase across all devices for pattern learning."""
-        print(f"Fetching up to {limit} recent telemetry records for AI training...")
+        import datetime
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=2)
+        cutoff_iso = cutoff_date.isoformat()
         
         try:
-            # We fetch a batch of recent telemetry to learn "Normal" vs "Abnormal" states
-            response = self.supabase.table('telemetry').select('*').order('timestamp', desc=True).limit(limit).execute()
+            # Fetch telemetry within the last 2 days for AI training
+            response = self.supabase.table('telemetry') \
+                .select('*') \
+                .gte('timestamp', cutoff_iso) \
+                .order('timestamp', desc=True) \
+                .limit(limit) \
+                .execute()
         except Exception as e:
             print(f"Error connecting to Supabase: {e}")
             return pd.DataFrame()

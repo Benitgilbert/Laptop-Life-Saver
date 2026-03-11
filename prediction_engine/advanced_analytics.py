@@ -129,7 +129,7 @@ class AdvancedAnalytics:
         devices_response = self.supabase.table('devices').select('id, mac_address').execute()
         
         # Look back 7 days for these behavioral patterns
-        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=7)
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=2)
         cutoff_iso = cutoff_date.isoformat()
         
         for device in devices_response.data:
