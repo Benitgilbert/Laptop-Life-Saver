@@ -72,11 +72,16 @@ def register_device(inventory: Optional[dict] = None, user_info: Optional[dict] 
             .upsert(payload, on_conflict="mac_address")
             .execute()
         )
+        
+        if not result.data:
+            logger.error("Device registration returned no data. Check RLS policies or database constraints.")
+            return None
+            
         device_id = result.data[0]["id"]
         logger.info("Device registered: %s (%s)", DEVICE_HOSTNAME, device_id)
         return device_id
     except Exception as exc:
-        logger.error("Device registration failed: %s", exc)
+        logger.error("Device registration failed: %s", exc, exc_info=True)
         return None
 
 
@@ -109,7 +114,7 @@ def send_telemetry(device_id: str, record: dict) -> bool:
         client.table("telemetry").insert(payload).execute()
         return True
     except Exception as exc:
-        logger.error("Telemetry send failed: %s", exc)
+        logger.error("Telemetry send failed (Device ID: %s): %s", device_id, exc)
         return False
 
 

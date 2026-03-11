@@ -48,57 +48,82 @@ except Exception:
 def read_cpu_temp() -> float:
     """
     Return CPU temperature in °C.
-    Tries multiple methods: WMI (Windows), psutil sensors, fallback to 0.0
+    Highly dynamic: tries WMI (standard & vendor-specific), typeperf (perf counters), and psutil.
     """
-    global _temp_method
-    
-    # First call: determine which method works
-    if _temp_method is None:
-        # Try WMI first (Windows-specific)
-        if WMI_AVAILABLE and _wmi_client is not None:
-            try:
-                assert _wmi_client is not None
-                sensors = _wmi_client.MSAcpi_ThermalZoneTemperature()
-                if sensors:
-                    kelvin = sensors[0].CurrentTemperature / 10.0
-                    _temp_method = "wmi"
-                    logger.info("Temperature monitoring: using WMI")
-                    return round(kelvin - 273.15, 1)
-            except Exception as exc:
-                logger.debug("WMI temp read failed: %s", exc)
-        
-        # Try psutil sensors (cross-platform)
+    # 1. Try WMI (Standard ACPI)
+    if WMI_AVAILABLE and _wmi_client is not None:
         try:
-            temps = psutil.sensors_temperatures()
-            if temps:
-                # Try common sensor names
-                for name in ['coretemp', 'cpu_thermal', 'k10temp', 'zenpower']:
-                    if name in temps and temps[name]:
-                        _temp_method = "psutil"
-                        logger.info("Temperature monitoring: using psutil (%s)", name)
-                        return round(temps[name][0].current, 1)
-        except Exception as exc:
-            logger.debug("psutil temp read failed: %s", exc)
-        
-        # No method works
-        _temp_method = "unavailable"
-        logger.warning("Temperature monitoring unavailable - will report 0°C (try running as administrator)")
-        return 0.0
-    
-    # Subsequent calls: use determined method
-    try:
-        if _temp_method == "wmi" and _wmi_client is not None:
             sensors = _wmi_client.MSAcpi_ThermalZoneTemperature()
-            if sensors:
-                kelvin = sensors[0].CurrentTemperature / 10.0
-                return round(kelvin - 273.15, 1)
-        elif _temp_method == "psutil":
-            temps = psutil.sensors_temperatures()
-            for name in ['coretemp', 'cpu_thermal', 'k10temp', 'zenpower']:
+            for s in sensors:
+                c = (s.CurrentTemperature / 10.0) - 273.15
+                if 10 < c < 120: 
+                    logger.info("Temp: Using MSAcpi (%.1f°C)", c)
+                    return round(c, 1)
+        except Exception as e:
+            logger.debug("MSAcpi failed: %s", e)
+
+    # 2. Try Vendor-Specific WMI Namespaces (Dynamic Discovery)
+    try:
+        if WMI_AVAILABLE:
+            import wmi
+            # HP-specific
+            try:
+                hp = wmi.WMI(namespace=r"root\HP\InstrumentedBIOS")
+                hp_sensors = hp.HP_BIOSNumericSensor(Name="CPU Temperature")
+                if hp_sensors:
+                    c = float(hp_sensors[0].CurrentReading)
+                    logger.info("Temp: Using HP Sensor (%.1f°C)", c)
+                    return c
+            except Exception: pass
+            
+            # Dell-specific
+            try:
+                dell = wmi.WMI(namespace=r"root\dcim\sysman")
+                dell_sensors = dell.DCIM_NumericSensor(Caption="CPU Temperature")
+                if dell_sensors:
+                    c = float(dell_sensors[0].CurrentReading)
+                    logger.info("Temp: Using Dell Sensor (%.1f°C)", c)
+                    return c
+            except Exception: pass
+    except Exception: pass
+
+    # 3. Try Performance Counters via typeperf (Very reliable fallback on Windows)
+    if platform.system() == "Windows":
+        try:
+            # -sc 1 means sample count 1 (immediate)
+            cmd = 'typeperf "\\Thermal Zone Information(*)\\Temperature" -sc 1'
+            output = subprocess.check_output(cmd, shell=True, timeout=5, stderr=subprocess.STDOUT).decode(errors='ignore').strip()
+            lines = [l.strip() for l in output.split('\n') if l.strip()]
+            for line in lines:
+                if line.startswith('"') and ',' in line:
+                    data_row = line.replace('"', '').split(',')
+                    for val in data_row[1:]: # Skip timestamp
+                        try:
+                            k = float(val)
+                            # typeperf can return Celsius directly or Kelvin (usually > 200).
+                            # If it's Kelvin (most common for Thermal Zone counters)
+                            if k > 200:
+                                c = k - 273.15
+                            else:
+                                c = k
+                            
+                            if 10 < c < 120:
+                                logger.info("Temp: Using typeperf (%.1f°C)", c)
+                                return round(c, 1)
+                        except (ValueError, IndexError): continue
+        except Exception as e:
+            logger.info("Temp: typeperf failed: %s", str(e))
+
+    # 4. Try psutil (Cross-platform standard)
+    try:
+        temps = psutil.sensors_temperatures()
+        if temps:
+            for name in ['coretemp', 'cpu_thermal', 'k10temp', 'zenpower', 'acpitz', 'thermal']:
                 if name in temps and temps[name]:
-                    return round(temps[name][0].current, 1)
-    except Exception as exc:
-        logger.debug("Temp read failed: %s", exc)
+                    c = temps[name][0].current
+                    logger.info("Temp: Using psutil %s (%.1f°C)", name, c)
+                    return round(c, 1)
+    except Exception: pass
     
     return 0.0
 
@@ -233,9 +258,11 @@ def collect_snapshot() -> dict:
     """
     battery = read_battery_health()
     disk_info = get_disk_info()
+    mac_addr = get_mac_address()
     
     return {
         "recorded_at":    datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "mac_address":    mac_addr,
         
         # Performance
         "cpu_temp_c":     read_cpu_temp(),

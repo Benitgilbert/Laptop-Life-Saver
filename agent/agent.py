@@ -20,12 +20,30 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Logging setup (Must be early) ───────────────────────────────────
+import logging.handlers
+
+appdata_path = os.path.join(os.environ.get("LOCALAPPDATA", "."), "LaptopLifeSaver")
+if not os.path.exists(appdata_path):
+    os.makedirs(appdata_path, exist_ok=True)
+log_file = os.path.join(appdata_path, "agent.log")
+
+# Create handlers
+c_handler = logging.StreamHandler(sys.stdout)
+f_handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=1024*1024, backupCount=5)
+
+# Create formatters and add it to handlers
+log_format = logging.Formatter("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+c_handler.setFormatter(log_format)
+f_handler.setFormatter(log_format)
+
+# Add handlers to the logger
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[c_handler, f_handler]
 )
+
 logger = logging.getLogger("agent")
+logger.info(f"Logging to file: {log_file}")
 
 from agent.config import POLL_INTERVAL, THRESHOLDS, AGENT_VERSION
 from agent.hardware_monitor import collect_snapshot
@@ -37,12 +55,7 @@ import shutil
 import ctypes
 import subprocess
 
-# ── Logging setup ───────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# Logging is already setup above
 # ── Global state for threading ─────────────────────────────────────
 _stop_event = threading.Event()
 

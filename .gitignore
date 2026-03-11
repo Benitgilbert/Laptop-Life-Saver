@@ -41,3 +41,8 @@ test_alerts.js
 user_config.json
 .env
 
+# PyInstaller
+build/
+*.spec
+dist/
+
