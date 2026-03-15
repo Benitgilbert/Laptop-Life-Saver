@@ -59,6 +59,26 @@ import subprocess
 # ── Global state for threading ─────────────────────────────────────
 _stop_event = threading.Event()
 
+# ── Startup registration ───────────────────────────────────────────
+def set_startup(exe_path: str) -> bool:
+    """Adds the specified executable to the Windows CurrentVersion\\Run registry key."""
+    if os.name != "nt":
+        return False
+    try:
+        import winreg
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        app_name = "LaptopLifeSaver"
+        
+        # Open the key for writing
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as reg_key:
+            # Wrap path in quotes to handle spaces in Program Files
+            winreg.SetValueEx(reg_key, app_name, 0, winreg.REG_SZ, f'"{exe_path}"')
+        logger.info(f"Registry entry created for auto-startup: {exe_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set startup registry key: {e}")
+        return False
+
 # ── Sustained-temperature tracker ────────────────────────────────────────
 _high_temp_start: Optional[float] = None
 
@@ -231,9 +251,9 @@ def check_for_installation():
         if os.path.exists(src_logo):
             shutil.copy2(src_logo, os.path.join(install_folder, "Logo.png"))
             
-        # Create a basic .env if URL/Key passed or use defaults
-        # (This would be handled by the wizard usually)
-        
+        # Add to startup
+        set_startup(target_exe)
+            
         logger.info("Installation complete. Launching installed agent...")
         subprocess.Popen([target_exe])
         sys.exit(0)
@@ -244,6 +264,10 @@ def main() -> None:
     # Trigger self-installation if needed
     if getattr(sys, 'frozen', False):
         check_for_installation()
+        
+    # Ensure startup registration is active for the installed version
+    if getattr(sys, 'frozen', False) and is_running_from_install_path():
+        set_startup(sys.executable)
 
     logger.info("═══════════════════════════════════════════════════")
     logger.info("  Laptop Life-Saver Agent v%s", AGENT_VERSION)

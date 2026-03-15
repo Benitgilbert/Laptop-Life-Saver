@@ -44,5 +44,5 @@ user_config.json
 # PyInstaller
 build/
 *.spec
-dist/
+# # dist/
 
