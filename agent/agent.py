@@ -67,7 +67,7 @@ def set_startup(exe_path: str) -> bool:
     try:
         import winreg
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
-        app_name = "LaptopLifeSaver"
+        app_name = "Laptop Life-Saver Monitoring"
         
         # Open the key for writing
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as reg_key:
@@ -250,6 +250,8 @@ def check_for_installation():
         src_logo = os.path.join(os.path.dirname(sys.executable), "Logo.png")
         if os.path.exists(src_logo):
             shutil.copy2(src_logo, os.path.join(install_folder, "Logo.png"))
+        
+        # NOTE: We no longer copy .env separately as it is now embedded in the EXE.
             
         # Add to startup
         set_startup(target_exe)

@@ -4,19 +4,26 @@ Laptop Life-Saver System | Nyanza District
 """
 
 import os
+import sys
 import socket
 import platform
 from dotenv import load_dotenv
 
 # ── Load environment variables ──────────────────────────────────────
-from .utils import get_resource_path
+# Try to find the .env file
+if getattr(sys, 'frozen', False):
+    # Running from PyInstaller bundle, look in _MEIPASS
+    _env_path = os.path.join(sys._MEIPASS, ".env")
+else:
+    # Development: Look in the root folder (parent of 'agent')
+    _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+    if not os.path.exists(_env_path):
+        _env_path = os.path.join(os.getcwd(), ".env")
 
-# Try to find the .env file in the resource path (works for frozen and dev)
-_env_path = get_resource_path(".env")
 if os.path.exists(_env_path):
     load_dotenv(_env_path)
 else:
-    # Fallback for dev if not found in root (unlikely if built correctly)
+    # Final fallback to standard search
     load_dotenv()
 
 # ── Supabase credentials ────────────────────────────────────────────
