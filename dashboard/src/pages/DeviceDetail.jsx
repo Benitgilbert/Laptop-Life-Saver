@@ -392,8 +392,8 @@ export default function DeviceDetail() {
                         {/* 1. Isolation Forest -> AI Health Score */}
                         <div className="bg-surface-50 p-4 rounded-xl border border-surface-100 flex flex-col justify-center items-center">
                             <h3 className="text-xs font-bold text-surface-500 uppercase tracking-widest mb-2 text-center">Behavioral Anomaly Score</h3>
-                            <div className={`text-4xl font-extrabold ${device?.health_score >= 80 ? 'text-emerald-500' : device?.health_score >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
-                                {device?.health_score ?? 100}%
+                            <div className={`text-4xl font-extrabold ${device?.ai_health_score >= 80 ? 'text-emerald-500' : device?.ai_health_score >= 50 ? 'text-amber-500' : 'text-rose-500'}`}>
+                                {device?.ai_health_score ?? 100}%
                             </div>
                             <p className="text-[10px] text-surface-400 mt-1 text-center">Via Isolation Forest ML</p>
                         </div>

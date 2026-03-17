@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS devices (
     ram_size_gb     real,
     
     -- Data Science & Machine Learning Predictions (Phase 2)
-    health_score real            DEFAULT 100.0, -- Isolation Forest Anomaly Score (0-100)
+    ai_health_score real            DEFAULT 100.0, -- Isolation Forest Anomaly Score (0-100)
     predicted_disk_full_days int,   -- Linear Regression RUL forecast
     usage_profile   text,           -- K-Means Classification (e.g., 'Light Web Browsing', 'Heavy Development')
     root_cause_insight text,        -- Decision Tree analysis (e.g., 'Google Chrome is causing 80% of overheating')
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS devices (
 
 COMMENT ON TABLE  devices IS 'Registered laptops in the Nyanza District fleet';
 COMMENT ON COLUMN devices.hostname IS 'Windows machine name (unique identifier)';
-COMMENT ON COLUMN devices.health_score IS 'ML-generated health score based on historical anomaly detection';
+COMMENT ON COLUMN devices.ai_health_score IS 'ML-generated health score based on historical anomaly detection';
 COMMENT ON COLUMN devices.predicted_disk_full_days IS 'ML-generated forecast of Remaining Useful Life until disk exhaustion';
 COMMENT ON COLUMN devices.usage_profile IS 'ML classification of the laptop''s typical workload';
 COMMENT ON COLUMN devices.root_cause_insight IS 'ML analysis identifying specific processes driving high resource usage';

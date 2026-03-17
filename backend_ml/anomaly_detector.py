@@ -107,7 +107,7 @@ class AnomalyDetector:
             normalized_score = float(max(0.0, min(100.0, ((raw_score + 0.5) * 100))))
             
             # Update the device's AI Health Score in the database
-            self.supabase.table('devices').update({"health_score": round(normalized_score, 1)}).eq('id', device_id).execute()
+            self.supabase.table('devices').update({"ai_health_score": round(normalized_score, 1)}).eq('id', device_id).execute()
             
             status = "🔴 ANOMALY DETECTED" if prediction == -1 else "🟢 NORMAL PATTERN"
             print(f"[{device['mac_address']}] AI Score: {normalized_score:.1f}% -> {status}")
