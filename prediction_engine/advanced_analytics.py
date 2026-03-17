@@ -23,8 +23,8 @@ class AdvancedAnalytics:
         if df.empty or len(df) < 5:
             return "Insufficient Data"
             
-        avg_cpu = df['cpu_percent'].mean()
-        avg_ram = df['ram_percent'].mean()
+        avg_cpu = df['cpu_usage_pct'].mean()
+        avg_ram = df['ram_usage_pct'].mean()
         
         # Simple threshold-based classification mapped to what a K-Means model would output
         # after fitting to the cluster centroids.
@@ -44,7 +44,7 @@ class AdvancedAnalytics:
             return "Unknown"
             
         # Filter for instances where the laptop was running hot (>75C)
-        hot_df = df[df['cpu_temp'] > 75]
+        hot_df = df[df['cpu_temp_c'] > 75]
         
         if hot_df.empty:
             return "No recent overheating events"
@@ -68,11 +68,11 @@ class AdvancedAnalytics:
             return False
             
         # Convert timestamp strings to pandas datetime objects if not already
-        if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+        if not pd.api.types.is_datetime64_any_dtype(df['recorded_at']):
+            df['recorded_at'] = pd.to_datetime(df['recorded_at'])
             
         # Extract the hour (0-23)
-        df['hour'] = df['timestamp'].dt.hour
+        df['hour'] = df['recorded_at'].dt.hour
         
         # Filter for typically inactive hours (e.g., 2 AM to 5 AM)
         off_hours_df = df[(df['hour'] >= 2) & (df['hour'] <= 5)]
@@ -81,7 +81,7 @@ class AdvancedAnalytics:
             return False
             
         # Check if CPU is suspiciously pegged at high usage during these hours
-        avg_off_hour_cpu = off_hours_df['cpu_percent'].mean()
+        avg_off_hour_cpu = off_hours_df['cpu_usage_pct'].mean()
         
         if avg_off_hour_cpu > 80.0:
             return True # Highly suspicious behavior, likely cryptominer
@@ -104,7 +104,7 @@ class AdvancedAnalytics:
             return False
             
         # Sort by time
-        unplugged = unplugged.sort_values(by='timestamp')
+        unplugged = unplugged.sort_values(by='recorded_at')
         
         # Calculate drop over time. If a battery drops from 100% to 10% in under 30 minutes
         # consistently, it is severely degraded.
@@ -112,7 +112,7 @@ class AdvancedAnalytics:
         first_record = unplugged.iloc[0]
         last_record = unplugged.iloc[-1]
         
-        time_diff_hours = (last_record['timestamp'] - first_record['timestamp']).total_seconds() / 3600.0
+        time_diff_hours = (last_record['recorded_at'] - first_record['recorded_at']).total_seconds() / 3600.0
         battery_drop = first_record['battery_percent'] - last_record['battery_percent']
         
         if time_diff_hours > 0 and battery_drop > 0:
@@ -136,19 +136,18 @@ class AdvancedAnalytics:
             device_id = device['id']
             mac = device['mac_address']
             
-            # Fetch the telemetry for this specific device
             response = self.supabase.table('telemetry') \
                 .select('*') \
                 .eq('device_id', device_id) \
-                .gte('timestamp', cutoff_iso) \
-                .order('timestamp', desc=False) \
+                .gte('recorded_at', cutoff_iso) \
+                .order('recorded_at', desc=False) \
                 .execute()
                 
             if not response.data:
                 continue
                 
             df = pd.DataFrame(response.data)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df['recorded_at'] = pd.to_datetime(df['recorded_at'])
             
             # 1. Profile Classification
             profile = self.classify_usage_profile(df, device_id)

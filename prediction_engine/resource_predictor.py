@@ -23,12 +23,11 @@ class ResourcePredictor:
         cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days_history)
         cutoff_iso = cutoff_date.isoformat()
         
-        # Fetch the telemetry for this specific device
         response = self.supabase.table('telemetry') \
-            .select('timestamp, disk_percent') \
+            .select('recorded_at, disk_usage_pct') \
             .eq('device_id', device_id) \
-            .gte('timestamp', cutoff_iso) \
-            .order('timestamp', desc=False) \
+            .gte('recorded_at', cutoff_iso) \
+            .order('recorded_at', desc=False) \
             .execute()
             
         if not response.data or len(response.data) < 10:
@@ -37,15 +36,15 @@ class ResourcePredictor:
         df = pd.DataFrame(response.data)
         
         # Convert timestamp strings to pandas datetime objects
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df['recorded_at'] = pd.to_datetime(df['recorded_at'])
         
         # Convert datetime to a numerical format for Regression (e.g., hours since the first log)
-        min_time = df['timestamp'].min()
-        df['hours_passed'] = (df['timestamp'] - min_time).dt.total_seconds() / 3600.0
+        min_time = df['recorded_at'].min()
+        df['hours_passed'] = (df['recorded_at'] - min_time).dt.total_seconds() / 3600.0
         
         # Prepare X (Time) and y (Disk Usage)
         X = df[['hours_passed']].values
-        y = df['disk_percent'].values
+        y = df['disk_usage_pct'].values
         
         # Train the Linear Regression model on this specific device's history
         model = LinearRegression()

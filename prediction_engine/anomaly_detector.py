@@ -31,8 +31,8 @@ class AnomalyDetector:
             # Fetch telemetry within the last 2 days for AI training
             response = self.supabase.table('telemetry') \
                 .select('*') \
-                .gte('timestamp', cutoff_iso) \
-                .order('timestamp', desc=True) \
+                .gte('recorded_at', cutoff_iso) \
+                .order('recorded_at', desc=True) \
                 .limit(limit) \
                 .execute()
         except Exception as e:
@@ -46,7 +46,7 @@ class AnomalyDetector:
         df = pd.DataFrame(response.data)
         
         # We only want to train on the actual hardware metrics to find patterns
-        features = ['cpu_percent', 'cpu_temp', 'ram_percent', 'disk_percent', 'battery_percent']
+        features = ['cpu_usage_pct', 'cpu_temp_c', 'ram_usage_pct', 'disk_usage_pct', 'battery_percent']
         
         # Some old data might not have battery_percent or cpu_temp, fill with Medians to save training
         for feature in features:
@@ -94,7 +94,7 @@ class AnomalyDetector:
             
             # Get the single most recent telemetry log for this device
             latest_tel = self.supabase.table('telemetry') \
-                .select('*').eq('device_id', device_id).order('timestamp', desc=True).limit(1).execute()
+                .select('*').eq('device_id', device_id).order('recorded_at', desc=True).limit(1).execute()
                 
             if not latest_tel.data:
                 continue
@@ -102,7 +102,7 @@ class AnomalyDetector:
             tel_data = latest_tel.data[0]
             
             # Extract features matching the training shape
-            features = ['cpu_percent', 'cpu_temp', 'ram_percent', 'disk_percent', 'battery_percent']
+            features = ['cpu_usage_pct', 'cpu_temp_c', 'ram_usage_pct', 'disk_usage_pct', 'battery_percent']
             current_state = []
             
             for f in features:
@@ -128,7 +128,7 @@ class AnomalyDetector:
                 
             # Update the device's AI Health Score in the database
             try:
-                self.supabase.table('devices').update({"ai_health_score": round(normalized_score, 1)}).eq('id', device_id).execute()
+                self.supabase.table('devices').update({"health_score": round(normalized_score, 1)}).eq('id', device_id).execute()
                 
                 status = "🔴 ANOMALY DETECTED" if prediction == -1 else "🟢 NORMAL PATTERN"
                 print(f"[{device['mac_address']}] AI Score: {normalized_score:.1f}% -> {status}")

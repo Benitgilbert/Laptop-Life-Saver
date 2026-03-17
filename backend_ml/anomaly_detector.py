@@ -37,7 +37,7 @@ class AnomalyDetector:
         df = pd.DataFrame(response.data)
         
         # We only want to train on the actual hardware metrics to find patterns
-        features = ['cpu_percent', 'cpu_temp', 'ram_percent', 'disk_percent', 'battery_percent']
+        features = ['cpu_usage_pct', 'cpu_temp_c', 'ram_usage_pct', 'disk_usage_pct', 'battery_percent']
         
         # Clean data (drop rows with missing critical metrics)
         df_clean = df.dropna(subset=features)
@@ -77,7 +77,7 @@ class AnomalyDetector:
             
             # Get the single most recent telemetry log for this device
             latest_tel = self.supabase.table('telemetry') \
-                .select('*').eq('device_id', device_id).order('timestamp', desc=True).limit(1).execute()
+                .select('*').eq('device_id', device_id).order('recorded_at', desc=True).limit(1).execute()
                 
             if not latest_tel.data:
                 continue
@@ -85,7 +85,7 @@ class AnomalyDetector:
             tel_data = latest_tel.data[0]
             
             # Extract features matching the training shape
-            features = ['cpu_percent', 'cpu_temp', 'ram_percent', 'disk_percent', 'battery_percent']
+            features = ['cpu_usage_pct', 'cpu_temp_c', 'ram_usage_pct', 'disk_usage_pct', 'battery_percent']
             current_state = []
             
             for f in features:
@@ -107,7 +107,7 @@ class AnomalyDetector:
             normalized_score = float(max(0.0, min(100.0, ((raw_score + 0.5) * 100))))
             
             # Update the device's AI Health Score in the database
-            self.supabase.table('devices').update({"ai_health_score": round(normalized_score, 1)}).eq('id', device_id).execute()
+            self.supabase.table('devices').update({"health_score": round(normalized_score, 1)}).eq('id', device_id).execute()
             
             status = "🔴 ANOMALY DETECTED" if prediction == -1 else "🟢 NORMAL PATTERN"
             print(f"[{device['mac_address']}] AI Score: {normalized_score:.1f}% -> {status}")
