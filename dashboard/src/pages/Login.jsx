@@ -111,9 +111,11 @@ export default function Login() {
                         )}
                     </button>
 
-                    <p className="text-center text-[11px] text-surface-400">
-                        Contact your administrator for access credentials
-                    </p>
+                   <p className="text-center text-[11px] leading-relaxed text-surface-400">
+  <strong>A Data-Driven Approach to Predictive Maintenance of Nyanza District IT Assets</strong> <br />
+  Developed by BYIRINGIRO Benit Gilbert (Reg No: 22247/2023) <br />
+  Final Year Project
+</p>
                 </form>
             </div>
         </div>
